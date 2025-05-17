@@ -1,0 +1,7 @@
+Flask>=2.0
+Pillow>=9.0
+moviepy>=1.0
+numpy>=1.20
+matplotlib>=3.4      # For font fallback mechanism
+requests>=2.31.0     # For making HTTP requests to Pollinations API
+python-dotenv>=0.19  # To load environment variables from .env
