@@ -69,6 +69,7 @@
         .form-container {
             background: var(--card-bg);
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px); /* Safari support */
             border: 1px solid var(--border-color);
             border-radius: 15px;
             padding: 2rem;
@@ -277,6 +278,72 @@
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
             background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
         }
+
+        .result-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            border: 1px solid var(--primary-color);
+            border-radius: 12px;
+            background: rgba(10, 20, 30, 0.95); /* dark, nearly opaque */
+            box-shadow: 0 4px 24px rgba(0, 247, 255, 0.08);
+            color: var(--text-color);
+        }
+
+        .download-section, .catbox-section {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(0, 20, 40, 0.85); /* dark blue, semi-transparent */
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 247, 255, 0.07);
+            color: var(--text-color);
+        }
+
+        .info-box {
+            background: rgba(0, 247, 255, 0.08); /* subtle cyan tint */
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            color: var(--text-color);
+        }
+
+        .copy-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .copy-button:hover {
+            background-color: #45a049;
+        }
+
+        .video-preview {
+            margin-top: 1rem;
+        }
+
+        .video-preview video {
+            max-width: 100%;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .download-button {
+            display: inline-block;
+            background-color: #2196F3;
+            color: white;
+            padding: 0.5rem 1rem;
+            text-decoration: none;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .download-button:hover {
+            background-color: #1976D2;
+        }
     </style>
 </head>
 <body>
@@ -293,15 +360,35 @@
         {% endif %}
 
         {% if filename %}
-            <div class="result">
-                <p>Video generated successfully!</p>
-                <div class="video-preview">
-                    <video controls autoplay loop>
-                        <source src="{{ url_for('download_file', filename=filename) }}" type="video/mp4">
-                        Your browser does not support the video tag.
-                    </video>
+            <div class="result-section">
+                <h3>Video Generated Successfully!</h3>
+                
+                <!-- Local Download Section -->
+                <div class="download-section">
+                    <h4>Local Download</h4>
+                    <a href="{{ url_for('download_file', filename=filename) }}" class="download-button" download>
+                        Download Video
+                    </a>
                 </div>
-                <a href="{{ url_for('download_file', filename=filename) }}" download class="download-btn">Download {{ filename }}</a>
+
+                <!-- Catbox Upload Section -->
+                {% if catbox_url %}
+                <div class="catbox-section">
+                    <h4>Catbox Upload</h4>
+                    <div class="info-box">
+                        <p><strong>Video ID:</strong> <span id="videoId">{{ video_id }}</span></p>
+                        <p><strong>Catbox URL:</strong> <span id="catboxUrl">{{ catbox_url }}</span></p>
+                        <button onclick="copyToClipboard('videoId')" class="copy-button">Copy Video ID</button>
+                        <button onclick="copyToClipboard('catboxUrl')" class="copy-button">Copy Catbox URL</button>
+                    </div>
+                    <div class="video-preview">
+                        <video controls>
+                            <source src="{{ catbox_url }}" type="video/mp4">
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                </div>
+                {% endif %}
             </div>
         {% endif %}
 
@@ -441,6 +528,33 @@
         document.getElementById('height').addEventListener('change', function() {
             document.getElementById('video_format').value = 'custom';
         });
+
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            const text = element.textContent;
+            
+            // Create a temporary input element
+            const input = document.createElement('input');
+            input.style.position = 'fixed';
+            input.style.opacity = 0;
+            input.value = text;
+            document.body.appendChild(input);
+            
+            // Select and copy the text
+            input.select();
+            document.execCommand('copy');
+            
+            // Remove the temporary element
+            document.body.removeChild(input);
+            
+            // Show feedback
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        }
     </script>
 </body>
 </html>

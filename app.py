@@ -26,10 +26,12 @@ load_dotenv()
 
 # --- Redis Setup ---
 try:
-    redis_url = os.getenv('UPSTASH_REDIS_URL')
-    if not redis_url:
-        raise ValueError("UPSTASH_REDIS_URL environment variable is not set")
-    redis_client = redis.from_url(redis_url)
+    redis_client = redis.Redis(
+        host='cosmic-titmouse-15186.upstash.io',
+        port=6379,
+        password='ATtSAAIjcDEyN2QxYTg0Y2U0ZjI0NWM2YTkyZTVkNmQyZTQwMTFlYnAxMA',
+        ssl=True
+    )
     # Test the connection
     redis_client.ping()
     print("Successfully connected to Redis")
@@ -759,16 +761,50 @@ def generate():
              flash('Width and Height must be between 256 and 4096 pixels.', 'error')
              return redirect(url_for('index'))
 
-
+        # Generate unique video ID
+        video_id = str(uuid.uuid4())
+        print(f"Generated video ID: {video_id}")
+        
         # --- Trigger the generation ---
         generated_filename, error = generate_video(params)
 
         if error:
-            # Render index page again, displaying the error
+            print(f"Error generating video: {error}")
             return render_template('index.html', error=error)
         else:
-            # Render index page again, providing the download link
-            return render_template('index.html', filename=generated_filename)
+            # Get the full path of the generated video
+            video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
+            print(f"Video generated successfully at: {video_path}")
+            
+            # Upload to Catbox
+            print("Starting Catbox upload...")
+            catbox_url = upload_to_catbox(video_path)
+            
+            if catbox_url:
+                print(f"Catbox upload successful. URL: {catbox_url}")
+                # Store in Redis if available
+                if redis_client is not None:
+                    if store_video_metadata(video_id, catbox_url):
+                        print(f"Successfully stored in Redis - ID: {video_id}, URL: {catbox_url}")
+                    else:
+                        print(f"Failed to store in Redis - ID: {video_id}")
+                else:
+                    print("Redis not available, skipping metadata storage")
+                
+                # Render index page with both local and Catbox URLs
+                return render_template('index.html', 
+                    filename=generated_filename,
+                    video_id=video_id,
+                    catbox_url=catbox_url,
+                    success_message="Video generated and uploaded successfully!"
+                )
+            else:
+                print("Catbox upload failed")
+                # If Catbox upload fails, still show the local file
+                return render_template('index.html', 
+                    filename=generated_filename,
+                    error="Video generated but failed to upload to Catbox. You can still download it locally."
+                )
 
     except Exception as e:
         print(f"An unexpected error occurred in /generate route: {e}")
@@ -808,14 +844,19 @@ def download_file(filename):
 def upload_to_catbox(file_path):
     """Uploads a file to Catbox and returns the URL."""
     try:
+        print(f"Attempting to upload file to Catbox: {file_path}")
         with open(file_path, 'rb') as f:
             files = {'fileToUpload': f}
             data = {'reqtype': 'fileupload'}
+            print("Sending request to Catbox API...")
             response = requests.post(CATBOX_API_URL, files=files, data=data)
             response.raise_for_status()
-            return response.text.strip()
+            catbox_url = response.text.strip()
+            print(f"Successfully uploaded to Catbox. URL: {catbox_url}")
+            return catbox_url
     except Exception as e:
         print(f"Error uploading to Catbox: {e}")
+        traceback.print_exc()  # Print full error traceback
         return None
 
 def store_video_metadata(video_id, catbox_url):
@@ -824,7 +865,9 @@ def store_video_metadata(video_id, catbox_url):
         print("Redis is not available, skipping metadata storage")
         return False
     try:
-        redis_client.set(f"video:{video_id}", catbox_url)
+        # Store with expiration of 30 days
+        redis_client.setex(f"video:{video_id}", 30 * 24 * 60 * 60, catbox_url)
+        print(f"Successfully stored video metadata in Redis - ID: {video_id}, URL: {catbox_url}")
         return True
     except Exception as e:
         print(f"Error storing video metadata in Redis: {e}")
@@ -836,7 +879,12 @@ def get_video_url(video_id):
         print("Redis is not available, cannot retrieve video URL")
         return None
     try:
-        return redis_client.get(f"video:{video_id}")
+        url = redis_client.get(f"video:{video_id}")
+        if url:
+            print(f"Successfully retrieved video URL from Redis - ID: {video_id}")
+            return url
+        print(f"No video URL found in Redis for ID: {video_id}")
+        return None
     except Exception as e:
         print(f"Error retrieving video URL from Redis: {e}")
         return None
@@ -960,6 +1008,7 @@ def api_video(video_id):
     if video_url:
         return jsonify({
             'status': 'success',
+            'video_id': video_id,
             'video_url': video_url.decode('utf-8')
         })
     return jsonify({
