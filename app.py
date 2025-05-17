@@ -29,7 +29,7 @@ app.config['UPLOAD_FOLDER'] = 'output'
 app.config['FONT_DIR'] = 'fonts'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['MAX_VIDEOS_PER_DAY'] = 10  # Per IP
-app.config['CLEANUP_DAYS'] = 1  # Clean up videos older than this
+app.config['CLEANUP_MINUTES'] = 10  # Delete videos after 10 minutes
 
 # Rate limiter setup
 limiter = Limiter(
@@ -646,7 +646,7 @@ class VideoTracker:
         self.cleanup_old_entries()
     
     def cleanup_old_entries(self):
-        cutoff = datetime.now() - timedelta(days=app.config['CLEANUP_DAYS'])
+        cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
         for ip in list(self.generations.keys()):
             self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
                                   if ts > cutoff]
@@ -657,11 +657,10 @@ tracker = VideoTracker()
 
 # --- Cleanup Function ---
 def cleanup_old_videos():
-    """Remove videos older than CLEANUP_DAYS."""
+    """Remove videos older than CLEANUP_MINUTES."""
     try:
-        cutoff = datetime.now() - timedelta(days=app.config['CLEANUP_DAYS'])
+        cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
         output_dir = Path(app.config['UPLOAD_FOLDER'])
-        
         for video_file in output_dir.glob('*.mp4'):
             if datetime.fromtimestamp(video_file.stat().st_mtime) < cutoff:
                 video_file.unlink()
@@ -834,6 +833,10 @@ def api_video(video_id):
 def api_docs():
     """Renders the API documentation page."""
     return render_template('api_docs.html')
+
+@app.before_request
+def before_request_cleanup():
+    cleanup_old_videos()
 
 # --- Main Execution ---
 if __name__ == '__main__':
