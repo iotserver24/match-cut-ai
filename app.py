@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import threading  # Add threading support
+import redis  # For Redis integration
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -19,6 +20,25 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from moviepy import ImageSequenceClip  # Use .editor for newer moviepy versions
 from werkzeug.utils import secure_filename
+
+# Load environment variables
+load_dotenv()
+
+# --- Redis Setup ---
+try:
+    redis_url = os.getenv('UPSTASH_REDIS_URL')
+    if not redis_url:
+        raise ValueError("UPSTASH_REDIS_URL environment variable is not set")
+    redis_client = redis.from_url(redis_url)
+    # Test the connection
+    redis_client.ping()
+    print("Successfully connected to Redis")
+except Exception as e:
+    print(f"Error connecting to Redis: {e}")
+    redis_client = None
+
+# --- Catbox API Settings ---
+CATBOX_API_URL = "https://catbox.moe/user/api.php"
 
 # --- AI Text Generation Settings ---
 POLLINATIONS_API_URL = "https://text.pollinations.ai"
@@ -785,19 +805,75 @@ def download_file(filename):
         flash('An error occurred while trying to serve the file.', 'error')
         return redirect(url_for('index'))
 
-def generate_video_background(video_id, params):
-    """Generate video in background thread."""
+def upload_to_catbox(file_path):
+    """Uploads a file to Catbox and returns the URL."""
     try:
-        generated_filename, error = generate_video(params)
-        if error:
-            tracker.update_status(video_id, 'failed', None)
-        else:
-            video_url = url_for('download_file', filename=generated_filename, _external=True)
-            tracker.update_status(video_id, 'completed', video_url)
+        with open(file_path, 'rb') as f:
+            files = {'fileToUpload': f}
+            data = {'reqtype': 'fileupload'}
+            response = requests.post(CATBOX_API_URL, files=files, data=data)
+            response.raise_for_status()
+            return response.text.strip()
     except Exception as e:
-        print(f"Error in background video generation: {e}")
-        traceback.print_exc()
-        tracker.update_status(video_id, 'failed', None)
+        print(f"Error uploading to Catbox: {e}")
+        return None
+
+def store_video_metadata(video_id, catbox_url):
+    """Stores video metadata in Redis."""
+    if redis_client is None:
+        print("Redis is not available, skipping metadata storage")
+        return False
+    try:
+        redis_client.set(f"video:{video_id}", catbox_url)
+        return True
+    except Exception as e:
+        print(f"Error storing video metadata in Redis: {e}")
+        return False
+
+def get_video_url(video_id):
+    """Retrieves video URL from Redis."""
+    if redis_client is None:
+        print("Redis is not available, cannot retrieve video URL")
+        return None
+    try:
+        return redis_client.get(f"video:{video_id}")
+    except Exception as e:
+        print(f"Error retrieving video URL from Redis: {e}")
+        return None
+
+def generate_video_background(video_id, params):
+    """Background task for video generation with Catbox upload."""
+    try:
+        # Update status to processing
+        tracker.update_status(video_id, "processing")
+        
+        # Generate the video
+        video_path = generate_video(params)
+        
+        if video_path:
+            # Upload to Catbox
+            catbox_url = upload_to_catbox(video_path)
+            
+            if catbox_url:
+                # Store in Redis if available
+                if redis_client is not None:
+                    if store_video_metadata(video_id, catbox_url):
+                        print(f"Successfully stored video metadata in Redis for video {video_id}")
+                    else:
+                        print(f"Failed to store video metadata in Redis for video {video_id}")
+                else:
+                    print("Redis not available, skipping metadata storage")
+                
+                # Update status with Catbox URL
+                tracker.update_status(video_id, "completed", catbox_url)
+            else:
+                tracker.update_status(video_id, "error", "Failed to upload to Catbox")
+        else:
+            tracker.update_status(video_id, "error", "Failed to generate video")
+            
+    except Exception as e:
+        print(f"Error in video generation background task: {e}")
+        tracker.update_status(video_id, "error", str(e))
 
 @app.route('/api/generate', methods=['POST'])
 @limiter.limit("10 per minute")
@@ -873,14 +949,23 @@ def api_status(video_id):
 
 @app.route('/api/video/<video_id>', methods=['GET'])
 def api_video(video_id):
-    status = tracker.get_status(video_id)
-    if not status or status['status'] != 'completed':
-        return jsonify({'error': 'Video not ready or not found'}), 404
-    
+    """Get video URL from Redis."""
+    if redis_client is None:
+        return jsonify({
+            'status': 'error',
+            'message': 'Redis service is not available'
+        }), 503
+        
+    video_url = get_video_url(video_id)
+    if video_url:
+        return jsonify({
+            'status': 'success',
+            'video_url': video_url.decode('utf-8')
+        })
     return jsonify({
-        'video_url': status['video_url'],
-        'download_url': f'/download/{video_id}'
-    })
+        'status': 'error',
+        'message': 'Video not found'
+    }), 404
 
 @app.route('/api/docs')
 def api_docs():
