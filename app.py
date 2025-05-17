@@ -630,44 +630,49 @@ class VideoTracker:
     def __init__(self):
         self.generations = {}  # IP -> list of (timestamp, filename)
         self.video_status = {}  # video_id -> status info
-        self.active_threads = {}  # video_id -> thread
+        self._lock = threading.Lock()  # Add thread safety
     
     def can_generate(self, ip):
-        today = datetime.now().date()
-        count = sum(1 for ts, _ in self.generations.get(ip, [])
-                   if ts.date() == today)
-        return count < app.config['MAX_VIDEOS_PER_DAY']
+        with self._lock:
+            today = datetime.now().date()
+            count = sum(1 for ts, _ in self.generations.get(ip, [])
+                       if ts.date() == today)
+            return count < app.config['MAX_VIDEOS_PER_DAY']
     
     def add_generation(self, ip, video_id):
-        if ip not in self.generations:
-            self.generations[ip] = []
-        self.generations[ip].append((datetime.now(), video_id))
-        self.video_status[video_id] = {
-            'status': 'processing',
-            'created_at': datetime.now().isoformat(),
-            'video_url': None
-        }
-        self.cleanup_old_entries()
+        with self._lock:
+            if ip not in self.generations:
+                self.generations[ip] = []
+            self.generations[ip].append((datetime.now(), video_id))
+            self.video_status[video_id] = {
+                'status': 'processing',
+                'created_at': datetime.now().isoformat(),
+                'video_url': None
+            }
+            self.cleanup_old_entries()
     
     def get_status(self, video_id):
         """Get the current status of a video generation."""
-        return self.video_status.get(video_id)
+        with self._lock:
+            return self.video_status.get(video_id)
     
     def update_status(self, video_id, status, video_url=None):
         """Update the status of a video generation."""
-        if video_id in self.video_status:
-            self.video_status[video_id].update({
-                'status': status,
-                'video_url': video_url
-            })
+        with self._lock:
+            if video_id in self.video_status:
+                self.video_status[video_id].update({
+                    'status': status,
+                    'video_url': video_url
+                })
     
     def cleanup_old_entries(self):
-        cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
-        for ip in list(self.generations.keys()):
-            self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
-                                  if ts > cutoff]
-            if not self.generations[ip]:
-                del self.generations[ip]
+        with self._lock:
+            cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
+            for ip in list(self.generations.keys()):
+                self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
+                                      if ts > cutoff]
+                if not self.generations[ip]:
+                    del self.generations[ip]
 
 tracker = VideoTracker()
 
@@ -791,17 +796,20 @@ def download_file(filename):
 def generate_video_background(video_id, params):
     """Generate video in background thread."""
     try:
-        print(f"Starting video generation for {video_id} with params: {params}")
+        # Update status to processing
+        tracker.update_status(video_id, 'processing')
+        
+        # Generate the video
         generated_filename, error = generate_video(params)
+        
         if error:
-            print(f"Error generating video {video_id}: {error}")
+            print(f"Error generating video: {error}")
             tracker.update_status(video_id, 'failed', None)
         else:
             video_url = url_for('download_file', filename=generated_filename, _external=True)
-            print(f"Video {video_id} generated successfully: {video_url}")
             tracker.update_status(video_id, 'completed', video_url)
     except Exception as e:
-        print(f"Error in background video generation for {video_id}: {e}")
+        print(f"Error in background video generation: {e}")
         traceback.print_exc()
         tracker.update_status(video_id, 'failed', None)
 
@@ -855,11 +863,8 @@ def api_generate():
             target=generate_video_background,
             args=(video_id, params)
         )
-        thread.daemon = False  # Make thread non-daemon so it survives server shutdown
+        # Don't set daemon=True to prevent thread from being killed on server shutdown
         thread.start()
-        
-        # Store the thread reference
-        tracker.active_threads[video_id] = thread
         
         # Return immediate response with video ID
         return jsonify({
