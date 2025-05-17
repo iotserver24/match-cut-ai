@@ -17,6 +17,7 @@ from flask import Flask, request, render_template, send_from_directory, url_for,
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from moviepy import ImageSequenceClip  # Use .editor for newer moviepy versions
+from werkzeug.utils import secure_filename
 
 # --- AI Text Generation Settings ---
 POLLINATIONS_API_URL = "https://text.pollinations.ai"
@@ -26,7 +27,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24) # Needed for flash messages (optional but good practice)
 app.config['UPLOAD_FOLDER'] = 'output'
 app.config['FONT_DIR'] = 'fonts'
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 # Limit upload size if adding file uploads later (5MB example)
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.config['MAX_VIDEOS_PER_DAY'] = 10  # Per IP
 app.config['CLEANUP_DAYS'] = 1  # Clean up videos older than this
 
@@ -34,7 +35,8 @@ app.config['CLEANUP_DAYS'] = 1  # Clean up videos older than this
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"]
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
 )
 
 # Ensure output and font directories exist
@@ -624,6 +626,7 @@ def generate_video(params):
 class VideoTracker:
     def __init__(self):
         self.generations = {}  # IP -> list of (timestamp, filename)
+        self.video_status = {}  # video_id -> status info
     
     def can_generate(self, ip):
         today = datetime.now().date()
@@ -631,10 +634,15 @@ class VideoTracker:
                    if ts.date() == today)
         return count < app.config['MAX_VIDEOS_PER_DAY']
     
-    def add_generation(self, ip, filename):
+    def add_generation(self, ip, video_id):
         if ip not in self.generations:
             self.generations[ip] = []
-        self.generations[ip].append((datetime.now(), filename))
+        self.generations[ip].append((datetime.now(), video_id))
+        self.video_status[video_id] = {
+            'status': 'processing',
+            'created_at': datetime.now().isoformat(),
+            'video_url': None
+        }
         self.cleanup_old_entries()
     
     def cleanup_old_entries(self):
@@ -645,7 +653,7 @@ class VideoTracker:
             if not self.generations[ip]:
                 del self.generations[ip]
 
-video_tracker = VideoTracker()
+tracker = VideoTracker()
 
 # --- Cleanup Function ---
 def cleanup_old_videos():
@@ -687,7 +695,7 @@ def generate():
     try:
         # Check rate limits
         ip = get_remote_address()
-        if not video_tracker.can_generate(ip):
+        if not tracker.can_generate(ip):
             return jsonify(error="Daily video generation limit reached. Please try again tomorrow."), 429
 
         # Validate input parameters
@@ -755,6 +763,68 @@ def download_file(filename):
         print(f"Error serving file {filename}: {e}")
         flash('An error occurred while trying to serve the file.', 'error')
         return redirect(url_for('index'))
+
+@app.route('/api/generate', methods=['POST'])
+@limiter.limit("10 per minute")
+def api_generate():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+
+        # Validate required fields
+        required_fields = ['highlighted_text', 'width', 'height', 'duration']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        # Generate unique video ID
+        video_id = str(uuid.uuid4())
+        
+        # Check rate limits
+        if not tracker.can_generate(request.remote_addr):
+            return jsonify({
+                'error': 'Rate limit exceeded',
+                'message': 'Too many video generations. Please try again later.'
+            }), 429
+
+        # Start video generation in background
+        tracker.add_generation(request.remote_addr, video_id)
+        
+        # Return immediate response with video ID
+        return jsonify({
+            'video_id': video_id,
+            'status': 'processing',
+            'message': 'Video generation started',
+            'status_url': f'/api/status/{video_id}'
+        }), 202
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/status/<video_id>', methods=['GET'])
+def api_status(video_id):
+    status = tracker.get_status(video_id)
+    if not status:
+        return jsonify({'error': 'Video ID not found'}), 404
+    
+    return jsonify(status)
+
+@app.route('/api/video/<video_id>', methods=['GET'])
+def api_video(video_id):
+    status = tracker.get_status(video_id)
+    if not status or status['status'] != 'completed':
+        return jsonify({'error': 'Video not ready or not found'}), 404
+    
+    return jsonify({
+        'video_url': status['video_url'],
+        'download_url': f'/download/{video_id}'
+    })
+
+@app.route('/api/docs')
+def api_docs():
+    """Renders the API documentation page."""
+    return render_template('api_docs.html')
 
 # --- Main Execution ---
 if __name__ == '__main__':

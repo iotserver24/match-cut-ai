@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Match Cut API Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #00ffff;
+            --secondary-color: #ff00ff;
+            --bg-color: #0a0a0a;
+            --text-color: #ffffff;
+            --code-bg: #1a1a1a;
+            --border-color: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary-color);
+            margin: 20px 0;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .brand {
+            font-size: 1.2em;
+            color: var(--secondary-color);
+            margin-top: 10px;
+        }
+
+        .endpoint {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .method {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .post { background: #4CAF50; }
+        .get { background: #2196F3; }
+
+        pre {
+            background: var(--code-bg);
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        code {
+            font-family: 'Roboto Mono', monospace;
+            color: var(--primary-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background: var(--code-bg);
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--code-bg);
+            color: var(--primary-color);
+        }
+
+        .note {
+            background: rgba(255, 255, 0, 0.1);
+            border-left: 4px solid yellow;
+            padding: 15px;
+            margin: 20px 0;
+        }
+
+        .example {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .example h4 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 10px 20px;
+            border: 1px solid var(--primary-color);
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            background: var(--primary-color);
+            color: var(--bg-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Text Match Cut API Documentation</h1>
+            <div class="brand">Made by: R3AP3R editz</div>
+        </header>
+
+        <section>
+            <h2>Base URL</h2>
+            <pre><code>http://127.0.0.1:5000/api</code></pre>
+        </section>
+
+        <section>
+            <h2>Authentication</h2>
+            <p>Currently, the API uses IP-based rate limiting. No authentication is required.</p>
+        </section>
+
+        <section>
+            <h2>Rate Limits</h2>
+            <ul>
+                <li>200 requests per day per IP</li>
+                <li>50 requests per hour per IP</li>
+                <li>10 video generations per minute per IP</li>
+                <li>10 videos per day per IP</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Endpoints</h2>
+
+            <div class="endpoint">
+                <h3>Generate Video</h3>
+                <span class="method post">POST</span>
+                <code>/api/generate</code>
+
+                <h4>Request Body</h4>
+                <pre><code>{
+    "highlighted_text": "Your text here",
+    "width": 1920,
+    "height": 1080,
+    "duration": 5,
+    "highlight_color": "#ff0000",
+    "text_color": "#ffffff",
+    "background_color": "#000000",
+    "blur_type": "gaussian",
+    "blur_radius": 10
+}</code></pre>
+
+                <h4>Parameters</h4>
+                <table>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>Type</th>
+                        <th>Required</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                    <tr>
+                        <td>highlighted_text</td>
+                        <td>string</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                        <td>Text to highlight in the video</td>
+                    </tr>
+                    <tr>
+                        <td>width</td>
+                        <td>integer</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                        <td>Video width in pixels (256-4096)</td>
+                    </tr>
+                    <tr>
+                        <td>height</td>
+                        <td>integer</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                        <td>Video height in pixels (256-4096)</td>
+                    </tr>
+                    <tr>
+                        <td>duration</td>
+                        <td>integer</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                        <td>Video duration in seconds (1-60)</td>
+                    </tr>
+                    <tr>
+                        <td>highlight_color</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>"#FFFF00"</td>
+                        <td>Color of the highlight box (hex)</td>
+                    </tr>
+                    <tr>
+                        <td>text_color</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>"#000000"</td>
+                        <td>Color of the text (hex)</td>
+                    </tr>
+                    <tr>
+                        <td>background_color</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>"#FFFFFF"</td>
+                        <td>Background color (hex)</td>
+                    </tr>
+                    <tr>
+                        <td>blur_type</td>
+                        <td>string</td>
+                        <td>No</td>
+                        <td>"gaussian"</td>
+                        <td>Type of blur ("gaussian" or "radial")</td>
+                    </tr>
+                    <tr>
+                        <td>blur_radius</td>
+                        <td>float</td>
+                        <td>No</td>
+                        <td>4.0</td>
+                        <td>Blur effect radius</td>
+                    </tr>
+                </table>
+
+                <h4>Response</h4>
+                <pre><code>{
+    "video_id": "550e8400-e29b-41d4-a716-446655440000",
+    "status": "processing",
+    "message": "Video generation started",
+    "status_url": "/api/status/550e8400-e29b-41d4-a716-446655440000"
+}</code></pre>
+            </div>
+
+            <div class="endpoint">
+                <h3>Check Status</h3>
+                <span class="method get">GET</span>
+                <code>/api/status/{video_id}</code>
+
+                <h4>Response</h4>
+                <pre><code>{
+    "status": "processing",
+    "created_at": "2024-05-17T15:39:23.123456",
+    "video_url": null
+}</code></pre>
+            </div>
+
+            <div class="endpoint">
+                <h3>Get Video</h3>
+                <span class="method get">GET</span>
+                <code>/api/video/{video_id}</code>
+
+                <h4>Response</h4>
+                <pre><code>{
+    "video_url": "http://127.0.0.1:5000/video/550e8400-e29b-41d4-a716-446655440000.mp4",
+    "download_url": "http://127.0.0.1:5000/download/550e8400-e29b-41d4-a716-446655440000"
+}</code></pre>
+            </div>
+        </section>
+
+        <section>
+            <h2>Example Usage</h2>
+            
+            <div class="example">
+                <h4>cURL</h4>
+                <pre><code># Generate video
+curl -X POST http://127.0.0.1:5000/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "highlighted_text": "Hello World",
+    "width": 1920,
+    "height": 1080,
+    "duration": 5
+  }'
+
+# Check status
+curl http://127.0.0.1:5000/api/status/550e8400-e29b-41d4-a716-446655440000
+
+# Get video
+curl http://127.0.0.1:5000/api/video/550e8400-e29b-41d4-a716-446655440000</code></pre>
+            </div>
+
+            <div class="example">
+                <h4>Python</h4>
+                <pre><code>import requests
+
+# Generate video
+response = requests.post('http://127.0.0.1:5000/api/generate', json={
+    'highlighted_text': 'Hello World',
+    'width': 1920,
+    'height': 1080,
+    'duration': 5
+})
+video_id = response.json()['video_id']
+
+# Check status
+status = requests.get(f'http://127.0.0.1:5000/api/status/{video_id}').json()
+
+# Get video URL when ready
+if status['status'] == 'completed':
+    video = requests.get(f'http://127.0.0.1:5000/api/video/{video_id}').json()
+    print(f"Video URL: {video['video_url']}")</code></pre>
+            </div>
+        </section>
+
+        <section>
+            <h2>Notes</h2>
+            <div class="note">
+                <ul>
+                    <li>Videos are automatically deleted after 1 day</li>
+                    <li>Maximum video duration is 60 seconds</li>
+                    <li>Maximum video dimensions are 4096x4096 pixels</li>
+                    <li>Minimum video dimensions are 256x256 pixels</li>
+                </ul>
+            </div>
+        </section>
+
+        <a href="/" class="back-link">← Back to Home</a>
+    </div>
+</body>
+</html> 
