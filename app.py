@@ -21,7 +21,7 @@ from moviepy import ImageSequenceClip  # Use .editor for newer moviepy versions
 from werkzeug.utils import secure_filename
 
 # --- AI Text Generation Settings ---
-POLLINATIONS_API_URL = "https://text.pollinations.ai"
+POLLINATIONS_API_URL = "https://api.pollinations.ai/v1/text"
 
 # --- Flask App Setup ---
 app = Flask(__name__)
@@ -152,9 +152,9 @@ def generate_ai_text_snippet(highlighted_text, min_lines, max_lines):
 
     try:
         # Make request to Pollinations API with correct URL format
-        response = requests.get(
-            f"{POLLINATIONS_API_URL}/prompt",
-            params={
+        response = requests.post(
+            POLLINATIONS_API_URL,
+            json={
                 'prompt': prompt,
                 'model': 'mistral'
             }
@@ -162,7 +162,7 @@ def generate_ai_text_snippet(highlighted_text, min_lines, max_lines):
         response.raise_for_status()  # Raise exception for bad status codes
         
         # Get the text content from response
-        content = response.text.strip()
+        content = response.json().get('text', '').strip()
 
         # Basic cleanup: remove potential empty lines
         lines = [line for line in content.split('\n') if line.strip()]
