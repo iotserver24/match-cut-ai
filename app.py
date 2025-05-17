@@ -9,8 +9,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import threading  # Add threading support
-import signal  # Add signal handling
-import sys  # Add system-specific parameters
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -630,49 +628,43 @@ class VideoTracker:
     def __init__(self):
         self.generations = {}  # IP -> list of (timestamp, filename)
         self.video_status = {}  # video_id -> status info
-        self._lock = threading.Lock()  # Add thread safety
     
     def can_generate(self, ip):
-        with self._lock:
-            today = datetime.now().date()
-            count = sum(1 for ts, _ in self.generations.get(ip, [])
-                       if ts.date() == today)
-            return count < app.config['MAX_VIDEOS_PER_DAY']
+        today = datetime.now().date()
+        count = sum(1 for ts, _ in self.generations.get(ip, [])
+                   if ts.date() == today)
+        return count < app.config['MAX_VIDEOS_PER_DAY']
     
     def add_generation(self, ip, video_id):
-        with self._lock:
-            if ip not in self.generations:
-                self.generations[ip] = []
-            self.generations[ip].append((datetime.now(), video_id))
-            self.video_status[video_id] = {
-                'status': 'processing',
-                'created_at': datetime.now().isoformat(),
-                'video_url': None
-            }
-            self.cleanup_old_entries()
+        if ip not in self.generations:
+            self.generations[ip] = []
+        self.generations[ip].append((datetime.now(), video_id))
+        self.video_status[video_id] = {
+            'status': 'processing',
+            'created_at': datetime.now().isoformat(),
+            'video_url': None
+        }
+        self.cleanup_old_entries()
     
     def get_status(self, video_id):
         """Get the current status of a video generation."""
-        with self._lock:
-            return self.video_status.get(video_id)
+        return self.video_status.get(video_id)
     
     def update_status(self, video_id, status, video_url=None):
         """Update the status of a video generation."""
-        with self._lock:
-            if video_id in self.video_status:
-                self.video_status[video_id].update({
-                    'status': status,
-                    'video_url': video_url
-                })
+        if video_id in self.video_status:
+            self.video_status[video_id].update({
+                'status': status,
+                'video_url': video_url
+            })
     
     def cleanup_old_entries(self):
-        with self._lock:
-            cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
-            for ip in list(self.generations.keys()):
-                self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
-                                      if ts > cutoff]
-                if not self.generations[ip]:
-                    del self.generations[ip]
+        cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
+        for ip in list(self.generations.keys()):
+            self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
+                                  if ts > cutoff]
+            if not self.generations[ip]:
+                del self.generations[ip]
 
 tracker = VideoTracker()
 
@@ -795,132 +787,81 @@ def download_file(filename):
 
 def generate_video_background(video_id, params):
     """Generate video in background thread."""
-    print(f"Starting background video generation for ID: {video_id}")
     try:
-        # Update status to processing
-        tracker.update_status(video_id, 'processing')
-        
-        # Generate the video
-        print(f"Calling generate_video with params: {params}")
         generated_filename, error = generate_video(params)
-        
         if error:
-            print(f"Error generating video {video_id}: {error}")
             tracker.update_status(video_id, 'failed', None)
         else:
-            print(f"Video {video_id} generated successfully: {generated_filename}")
             video_url = url_for('download_file', filename=generated_filename, _external=True)
             tracker.update_status(video_id, 'completed', video_url)
-            print(f"Video {video_id} status updated to completed")
-            
     except Exception as e:
-        print(f"Unexpected error in background video generation for {video_id}: {e}")
+        print(f"Error in background video generation: {e}")
         traceback.print_exc()
         tracker.update_status(video_id, 'failed', None)
-        print(f"Video {video_id} status updated to failed")
 
 @app.route('/api/generate', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_generate():
     try:
-        # Log the incoming request
-        print(f"Received API generate request from {request.remote_addr}")
-        
-        # Check if request has JSON data
-        if not request.is_json:
-            print("Error: Request does not contain JSON data")
-            return jsonify({'error': 'Request must contain JSON data'}), 400
-            
         data = request.get_json()
         if not data:
-            print("Error: Empty JSON data received")
             return jsonify({'error': 'No JSON data provided'}), 400
 
         # Validate required fields
         required_fields = ['highlighted_text', 'width', 'height', 'duration']
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            print(f"Error: Missing required fields: {missing_fields}")
-            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
 
-        # Validate field values
-        try:
-            width = int(data['width'])
-            height = int(data['height'])
-            duration = int(data['duration'])
-            
-            if not (256 <= width <= 4096):
-                return jsonify({'error': 'Width must be between 256 and 4096 pixels'}), 400
-            if not (256 <= height <= 4096):
-                return jsonify({'error': 'Height must be between 256 and 4096 pixels'}), 400
-            if not (1 <= duration <= 60):
-                return jsonify({'error': 'Duration must be between 1 and 60 seconds'}), 400
-                
-        except ValueError as e:
-            print(f"Error: Invalid numeric values in request: {e}")
-            return jsonify({'error': 'Invalid numeric values provided'}), 400
-
-        # Add default values for optional parameters
+        # Add default values for optional parameters (matching index.html defaults)
         params = {
             # Required parameters
-            'width': width,
-            'height': height,
-            'duration': duration,
+            'width': data['width'],
+            'height': data['height'],
+            'duration': data['duration'],
             'highlighted_text': data['highlighted_text'],
             
-            # Optional parameters with defaults
-            'fps': int(data.get('fps', 5)),
-            'highlight_color': data.get('highlight_color', '#00f7ff'),
-            'text_color': data.get('text_color', '#ffffff'),
-            'background_color': data.get('background_color', '#0a0a0a'),
-            'blur_type': data.get('blur_type', 'radial'),
-            'blur_radius': float(data.get('blur_radius', 4.0)),
-            'ai_enabled': bool(data.get('ai_enabled', True))
+            # Optional parameters with defaults from index.html
+            'fps': data.get('fps', 5),                    # Default fps to 5
+            'highlight_color': data.get('highlight_color', '#00f7ff'),  # Default from index.html
+            'text_color': data.get('text_color', '#ffffff'),          # Default from index.html
+            'background_color': data.get('background_color', '#0a0a0a'), # Default from index.html
+            'blur_type': data.get('blur_type', 'radial'),             # Default from index.html
+            'blur_radius': data.get('blur_radius', 4.0),              # Default from index.html
+            'ai_enabled': data.get('ai_enabled', True)
         }
 
         # Generate unique video ID
         video_id = str(uuid.uuid4())
-        print(f"Generated video ID: {video_id}")
         
         # Check rate limits
         if not tracker.can_generate(request.remote_addr):
-            print(f"Rate limit exceeded for IP: {request.remote_addr}")
             return jsonify({
                 'error': 'Rate limit exceeded',
                 'message': 'Too many video generations. Please try again later.'
             }), 429
 
         # Start video generation in background
-        try:
-            tracker.add_generation(request.remote_addr, video_id)
-            
-            # Start background thread for video generation
-            thread = threading.Thread(
-                target=generate_video_background,
-                args=(video_id, params),
-                name=f"video_gen_{video_id}"
-            )
-            thread.start()
-            
-            print(f"Started background generation for video ID: {video_id}")
-            
-            # Return immediate response with video ID
-            return jsonify({
-                'video_id': video_id,
-                'status': 'processing',
-                'message': 'Video generation started',
-                'status_url': f'/api/status/{video_id}'
-            }), 202
-
-        except Exception as e:
-            print(f"Error starting video generation: {e}")
-            traceback.print_exc()
-            return jsonify({'error': 'Failed to start video generation'}), 500
+        tracker.add_generation(request.remote_addr, video_id)
+        
+        # Start background thread for video generation
+        thread = threading.Thread(
+            target=generate_video_background,
+            args=(video_id, params)
+        )
+        thread.daemon = True  # Thread will be killed when main program exits
+        thread.start()
+        
+        # Return immediate response with video ID
+        return jsonify({
+            'video_id': video_id,
+            'status': 'processing',
+            'message': 'Video generation started',
+            'status_url': f'/api/status/{video_id}'
+        }), 202
 
     except Exception as e:
-        print(f"Unexpected error in api_generate: {e}")
-        traceback.print_exc()
-        return jsonify({'error': 'Internal server error'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/status/<video_id>', methods=['GET'])
 def api_status(video_id):
@@ -949,21 +890,6 @@ def api_docs():
 @app.before_request
 def before_request_cleanup():
     cleanup_old_videos()
-
-# Add signal handlers for graceful shutdown
-def handle_sigterm(signum, frame):
-    print("Received SIGTERM. Waiting for active video generations to complete...")
-    # Wait for active threads to complete
-    for video_id, thread in tracker.active_threads.items():
-        if thread.is_alive():
-            print(f"Waiting for video {video_id} to complete...")
-            thread.join(timeout=30)  # Wait up to 30 seconds for each thread
-    print("All video generations completed or timed out. Shutting down...")
-    sys.exit(0)
-
-# Register signal handlers
-signal.signal(signal.SIGTERM, handle_sigterm)
-signal.signal(signal.SIGINT, handle_sigterm)
 
 # --- Main Execution ---
 if __name__ == '__main__':
