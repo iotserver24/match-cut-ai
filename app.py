@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import threading  # Add threading support
+import signal  # Add signal handling
+import sys  # Add system-specific parameters
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -628,6 +630,7 @@ class VideoTracker:
     def __init__(self):
         self.generations = {}  # IP -> list of (timestamp, filename)
         self.video_status = {}  # video_id -> status info
+        self.active_threads = {}  # video_id -> thread
     
     def can_generate(self, ip):
         today = datetime.now().date()
@@ -788,14 +791,17 @@ def download_file(filename):
 def generate_video_background(video_id, params):
     """Generate video in background thread."""
     try:
+        print(f"Starting video generation for {video_id} with params: {params}")
         generated_filename, error = generate_video(params)
         if error:
+            print(f"Error generating video {video_id}: {error}")
             tracker.update_status(video_id, 'failed', None)
         else:
             video_url = url_for('download_file', filename=generated_filename, _external=True)
+            print(f"Video {video_id} generated successfully: {video_url}")
             tracker.update_status(video_id, 'completed', video_url)
     except Exception as e:
-        print(f"Error in background video generation: {e}")
+        print(f"Error in background video generation for {video_id}: {e}")
         traceback.print_exc()
         tracker.update_status(video_id, 'failed', None)
 
@@ -849,8 +855,11 @@ def api_generate():
             target=generate_video_background,
             args=(video_id, params)
         )
-        thread.daemon = True  # Thread will be killed when main program exits
+        thread.daemon = False  # Make thread non-daemon so it survives server shutdown
         thread.start()
+        
+        # Store the thread reference
+        tracker.active_threads[video_id] = thread
         
         # Return immediate response with video ID
         return jsonify({
@@ -861,6 +870,8 @@ def api_generate():
         }), 202
 
     except Exception as e:
+        print(f"Error in api_generate: {e}")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/status/<video_id>', methods=['GET'])
@@ -890,6 +901,21 @@ def api_docs():
 @app.before_request
 def before_request_cleanup():
     cleanup_old_videos()
+
+# Add signal handlers for graceful shutdown
+def handle_sigterm(signum, frame):
+    print("Received SIGTERM. Waiting for active video generations to complete...")
+    # Wait for active threads to complete
+    for video_id, thread in tracker.active_threads.items():
+        if thread.is_alive():
+            print(f"Waiting for video {video_id} to complete...")
+            thread.join(timeout=30)  # Wait up to 30 seconds for each thread
+    print("All video generations completed or timed out. Shutting down...")
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGTERM, handle_sigterm)
+signal.signal(signal.SIGINT, handle_sigterm)
 
 # --- Main Execution ---
 if __name__ == '__main__':
