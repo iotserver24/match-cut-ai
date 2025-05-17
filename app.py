@@ -5,12 +5,17 @@ import time
 import traceback  # For detailed error logging
 import uuid  # For unique filenames
 import requests  # For making HTTP requests
+from datetime import datetime, timedelta
+from pathlib import Path
+import shutil
 
 import matplotlib.font_manager as fm
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from dotenv import load_dotenv
-from flask import Flask, request, render_template, send_from_directory, url_for, flash, redirect
+from flask import Flask, request, render_template, send_from_directory, url_for, flash, redirect, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from moviepy import ImageSequenceClip  # Use .editor for newer moviepy versions
 
 # --- AI Text Generation Settings ---
@@ -22,6 +27,15 @@ app.config['SECRET_KEY'] = os.urandom(24) # Needed for flash messages (optional 
 app.config['UPLOAD_FOLDER'] = 'output'
 app.config['FONT_DIR'] = 'fonts'
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 # Limit upload size if adding file uploads later (5MB example)
+app.config['MAX_VIDEOS_PER_DAY'] = 10  # Per IP
+app.config['CLEANUP_DAYS'] = 1  # Clean up videos older than this
+
+# Rate limiter setup
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"]
+)
 
 # Ensure output and font directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -606,17 +620,77 @@ def generate_video(params):
         return None, error_message
 
 
-# --- Flask Routes ---
+# --- Video Generation Tracking ---
+class VideoTracker:
+    def __init__(self):
+        self.generations = {}  # IP -> list of (timestamp, filename)
+    
+    def can_generate(self, ip):
+        today = datetime.now().date()
+        count = sum(1 for ts, _ in self.generations.get(ip, [])
+                   if ts.date() == today)
+        return count < app.config['MAX_VIDEOS_PER_DAY']
+    
+    def add_generation(self, ip, filename):
+        if ip not in self.generations:
+            self.generations[ip] = []
+        self.generations[ip].append((datetime.now(), filename))
+        self.cleanup_old_entries()
+    
+    def cleanup_old_entries(self):
+        cutoff = datetime.now() - timedelta(days=app.config['CLEANUP_DAYS'])
+        for ip in list(self.generations.keys()):
+            self.generations[ip] = [(ts, fn) for ts, fn in self.generations[ip]
+                                  if ts > cutoff]
+            if not self.generations[ip]:
+                del self.generations[ip]
 
+video_tracker = VideoTracker()
+
+# --- Cleanup Function ---
+def cleanup_old_videos():
+    """Remove videos older than CLEANUP_DAYS."""
+    try:
+        cutoff = datetime.now() - timedelta(days=app.config['CLEANUP_DAYS'])
+        output_dir = Path(app.config['UPLOAD_FOLDER'])
+        
+        for video_file in output_dir.glob('*.mp4'):
+            if datetime.fromtimestamp(video_file.stat().st_mtime) < cutoff:
+                video_file.unlink()
+                print(f"Cleaned up old video: {video_file}")
+    except Exception as e:
+        print(f"Error during cleanup: {e}")
+
+# --- Error Handlers ---
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return jsonify(error="Rate limit exceeded. Please try again later."), 429
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    return jsonify(error="Request too large."), 413
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify(error="Internal server error. Please try again later."), 500
+
+# --- Routes ---
 @app.route('/', methods=['GET'])
 def index():
     """Renders the main form page."""
     return render_template('index.html')
 
 @app.route('/generate', methods=['POST'])
+@limiter.limit("10 per minute")
 def generate():
     """Handles form submission, triggers video generation."""
     try:
+        # Check rate limits
+        ip = get_remote_address()
+        if not video_tracker.can_generate(ip):
+            return jsonify(error="Daily video generation limit reached. Please try again tomorrow."), 429
+
+        # Validate input parameters
         params = {
             'width': request.form.get('width', default=1024, type=int),
             'height': request.form.get('height', default=1024, type=int),
@@ -628,10 +702,10 @@ def generate():
             'background_color': request.form.get('background_color', default='#FFFFFF'),
             'blur_type': request.form.get('blur_type', default='gaussian'),
             'blur_radius': request.form.get('blur_radius', default=4.0, type=float),
-            'ai_enabled': True,  # Always enabled
+            'ai_enabled': True,
         }
 
-        # Basic Input Validation (Example)
+        # Input validation
         if not params['highlighted_text']:
             flash('Highlighted text cannot be empty.', 'error')
             return redirect(url_for('index'))

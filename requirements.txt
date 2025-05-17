@@ -5,3 +5,6 @@ numpy>=1.20
 matplotlib>=3.4      # For font fallback mechanism
 requests>=2.31.0     # For making HTTP requests to Pollinations API
 python-dotenv>=0.19  # To load environment variables from .env
+Flask-Limiter>=3.5.0
+gunicorn>=21.2.0
+gevent>=23.9.1
