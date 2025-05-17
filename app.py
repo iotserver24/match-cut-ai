@@ -864,8 +864,12 @@ def store_video_metadata(video_id, catbox_url):
         return False
     try:
         # Store with expiration of 30 days
-        redis_client.setex(f"video:{video_id}", 30 * 24 * 60 * 60, catbox_url)
-        print(f"Successfully stored video metadata in Redis - ID: {video_id}, URL: {catbox_url}")
+        key = f"video:{video_id}"
+        result = redis_client.setex(key, 30 * 24 * 60 * 60, catbox_url)
+        print(f"Stored URL in Redis: key={key}, value={catbox_url}, result={result}")
+        
+        # Also update the status
+        set_video_status_redis(video_id, "completed", video_url=catbox_url)
         return True
     except Exception as e:
         print(f"Error storing video metadata in Redis: {e}")
@@ -877,11 +881,13 @@ def get_video_url(video_id):
         print("Redis is not available, cannot retrieve video URL")
         return None
     try:
-        url = redis_client.get(f"video:{video_id}")
+        key = f"video:{video_id}"
+        print(f"Checking Redis for URL key: {key}")
+        url = redis_client.get(key)
         if url:
-            print(f"Successfully retrieved video URL from Redis - ID: {video_id}")
+            print(f"Found URL in Redis for {video_id}: {url}")
             return url
-        print(f"No video URL found in Redis for ID: {video_id}")
+        print(f"No URL found in Redis for ID: {video_id}")
         return None
     except Exception as e:
         print(f"Error retrieving video URL from Redis: {e}")
@@ -981,19 +987,41 @@ def api_status(video_id):
 
 @app.route('/api/video/<video_id>', methods=['GET'])
 def api_video(video_id):
+    # First, try to get status from Redis (new method)
     status = get_video_status_redis(video_id)
-    if not status:
-        return jsonify({'error': 'Video not ready or not found'}), 404
-    if status.get('status') == 'completed' and status.get('video_url'):
+    
+    if status and status.get('status') == 'completed' and status.get('video_url'):
         return jsonify({
             'status': 'success',
             'video_id': video_id,
             'video_url': status['video_url']
         })
-    elif status.get('status') == 'failed':
-        return jsonify({'error': status.get('error', 'Video generation failed')}), 400
-    else:
-        return jsonify({'error': 'Video not ready or not found'}), 404
+    elif status and status.get('status') == 'failed':
+        return jsonify({
+            'status': 'error',
+            'error': status.get('error', 'Video generation failed')
+        }), 400
+    
+    # If status not found or incomplete, try the legacy method (direct URL lookup)
+    video_url = get_video_url(video_id)
+    if video_url:
+        try:
+            url_str = video_url.decode('utf-8')
+            # Also update the status in Redis for future requests
+            set_video_status_redis(video_id, "completed", video_url=url_str)
+            return jsonify({
+                'status': 'success',
+                'video_id': video_id,
+                'video_url': url_str
+            })
+        except Exception as e:
+            print(f"Error converting URL from Redis: {e}")
+    
+    # If all else fails, return error
+    return jsonify({
+        'status': 'error',
+        'error': 'Video not ready or not found'
+    }), 404
 
 @app.route('/api/docs')
 def api_docs():
@@ -1006,23 +1034,64 @@ def before_request_cleanup():
 
 # --- Redis Status Helpers ---
 def set_video_status_redis(video_id, status, video_url=None, error=None):
+    """Store video status information in Redis."""
     if redis_client is None:
-        return
+        print(f"Cannot set video status: Redis client is None")
+        return False
+    
+    key = f"status:{video_id}"
     data = {
         "status": status,
         "created_at": datetime.now().isoformat(),
         "video_url": video_url,
         "error": error
     }
-    redis_client.setex(f"status:{video_id}", 30 * 24 * 60 * 60, json.dumps(data))
+    
+    try:
+        json_data = json.dumps(data)
+        result = redis_client.setex(key, 30 * 24 * 60 * 60, json_data)
+        print(f"Redis setex result for {key}: {result}")
+        print(f"Status data stored in Redis: {json_data}")
+        return True
+    except Exception as e:
+        print(f"Error setting video status in Redis for ID {video_id}: {e}")
+        return False
 
 def get_video_status_redis(video_id):
+    """Retrieve video status information from Redis."""
     if redis_client is None:
+        print(f"Cannot get video status: Redis client is None")
         return None
-    data = redis_client.get(f"status:{video_id}")
-    if data:
-        return json.loads(data)
-    return None
+    
+    key = f"status:{video_id}"
+    try:
+        print(f"Checking Redis for status key: {key}")
+        data = redis_client.get(key)
+        
+        if data:
+            status_data = json.loads(data)
+            print(f"Found status data in Redis for {video_id}: {status_data}")
+            return status_data
+        else:
+            print(f"No status data found in Redis for {video_id}")
+            # Check if we have a URL stored in the legacy format
+            legacy_url = get_video_url(video_id)
+            if legacy_url:
+                print(f"Found legacy URL for {video_id}: {legacy_url}")
+                # Create status data from legacy URL
+                status_data = {
+                    "status": "completed",
+                    "created_at": datetime.now().isoformat(),
+                    "video_url": legacy_url.decode('utf-8'),
+                    "error": None
+                }
+                # Store it in the new format
+                set_video_status_redis(video_id, "completed", video_url=legacy_url.decode('utf-8'))
+                return status_data
+        return None
+    except Exception as e:
+        print(f"Error getting video status from Redis for ID {video_id}: {e}")
+        return None
 
 # --- Main Execution ---
 if __name__ == '__main__':
