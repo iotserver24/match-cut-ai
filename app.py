@@ -795,89 +795,132 @@ def download_file(filename):
 
 def generate_video_background(video_id, params):
     """Generate video in background thread."""
+    print(f"Starting background video generation for ID: {video_id}")
     try:
         # Update status to processing
         tracker.update_status(video_id, 'processing')
         
         # Generate the video
+        print(f"Calling generate_video with params: {params}")
         generated_filename, error = generate_video(params)
         
         if error:
-            print(f"Error generating video: {error}")
+            print(f"Error generating video {video_id}: {error}")
             tracker.update_status(video_id, 'failed', None)
         else:
+            print(f"Video {video_id} generated successfully: {generated_filename}")
             video_url = url_for('download_file', filename=generated_filename, _external=True)
             tracker.update_status(video_id, 'completed', video_url)
+            print(f"Video {video_id} status updated to completed")
+            
     except Exception as e:
-        print(f"Error in background video generation: {e}")
+        print(f"Unexpected error in background video generation for {video_id}: {e}")
         traceback.print_exc()
         tracker.update_status(video_id, 'failed', None)
+        print(f"Video {video_id} status updated to failed")
 
 @app.route('/api/generate', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_generate():
     try:
+        # Log the incoming request
+        print(f"Received API generate request from {request.remote_addr}")
+        
+        # Check if request has JSON data
+        if not request.is_json:
+            print("Error: Request does not contain JSON data")
+            return jsonify({'error': 'Request must contain JSON data'}), 400
+            
         data = request.get_json()
         if not data:
+            print("Error: Empty JSON data received")
             return jsonify({'error': 'No JSON data provided'}), 400
 
         # Validate required fields
         required_fields = ['highlighted_text', 'width', 'height', 'duration']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            print(f"Error: Missing required fields: {missing_fields}")
+            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
 
-        # Add default values for optional parameters (matching index.html defaults)
+        # Validate field values
+        try:
+            width = int(data['width'])
+            height = int(data['height'])
+            duration = int(data['duration'])
+            
+            if not (256 <= width <= 4096):
+                return jsonify({'error': 'Width must be between 256 and 4096 pixels'}), 400
+            if not (256 <= height <= 4096):
+                return jsonify({'error': 'Height must be between 256 and 4096 pixels'}), 400
+            if not (1 <= duration <= 60):
+                return jsonify({'error': 'Duration must be between 1 and 60 seconds'}), 400
+                
+        except ValueError as e:
+            print(f"Error: Invalid numeric values in request: {e}")
+            return jsonify({'error': 'Invalid numeric values provided'}), 400
+
+        # Add default values for optional parameters
         params = {
             # Required parameters
-            'width': data['width'],
-            'height': data['height'],
-            'duration': data['duration'],
+            'width': width,
+            'height': height,
+            'duration': duration,
             'highlighted_text': data['highlighted_text'],
             
-            # Optional parameters with defaults from index.html
-            'fps': data.get('fps', 5),                    # Default fps to 5
-            'highlight_color': data.get('highlight_color', '#00f7ff'),  # Default from index.html
-            'text_color': data.get('text_color', '#ffffff'),          # Default from index.html
-            'background_color': data.get('background_color', '#0a0a0a'), # Default from index.html
-            'blur_type': data.get('blur_type', 'radial'),             # Default from index.html
-            'blur_radius': data.get('blur_radius', 4.0),              # Default from index.html
-            'ai_enabled': data.get('ai_enabled', True)
+            # Optional parameters with defaults
+            'fps': int(data.get('fps', 5)),
+            'highlight_color': data.get('highlight_color', '#00f7ff'),
+            'text_color': data.get('text_color', '#ffffff'),
+            'background_color': data.get('background_color', '#0a0a0a'),
+            'blur_type': data.get('blur_type', 'radial'),
+            'blur_radius': float(data.get('blur_radius', 4.0)),
+            'ai_enabled': bool(data.get('ai_enabled', True))
         }
 
         # Generate unique video ID
         video_id = str(uuid.uuid4())
+        print(f"Generated video ID: {video_id}")
         
         # Check rate limits
         if not tracker.can_generate(request.remote_addr):
+            print(f"Rate limit exceeded for IP: {request.remote_addr}")
             return jsonify({
                 'error': 'Rate limit exceeded',
                 'message': 'Too many video generations. Please try again later.'
             }), 429
 
         # Start video generation in background
-        tracker.add_generation(request.remote_addr, video_id)
-        
-        # Start background thread for video generation
-        thread = threading.Thread(
-            target=generate_video_background,
-            args=(video_id, params)
-        )
-        # Don't set daemon=True to prevent thread from being killed on server shutdown
-        thread.start()
-        
-        # Return immediate response with video ID
-        return jsonify({
-            'video_id': video_id,
-            'status': 'processing',
-            'message': 'Video generation started',
-            'status_url': f'/api/status/{video_id}'
-        }), 202
+        try:
+            tracker.add_generation(request.remote_addr, video_id)
+            
+            # Start background thread for video generation
+            thread = threading.Thread(
+                target=generate_video_background,
+                args=(video_id, params),
+                name=f"video_gen_{video_id}"
+            )
+            thread.start()
+            
+            print(f"Started background generation for video ID: {video_id}")
+            
+            # Return immediate response with video ID
+            return jsonify({
+                'video_id': video_id,
+                'status': 'processing',
+                'message': 'Video generation started',
+                'status_url': f'/api/status/{video_id}'
+            }), 202
+
+        except Exception as e:
+            print(f"Error starting video generation: {e}")
+            traceback.print_exc()
+            return jsonify({'error': 'Failed to start video generation'}), 500
 
     except Exception as e:
-        print(f"Error in api_generate: {e}")
+        print(f"Unexpected error in api_generate: {e}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/status/<video_id>', methods=['GET'])
 def api_status(video_id):
