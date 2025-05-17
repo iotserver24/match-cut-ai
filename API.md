@@ -37,6 +37,7 @@ POST /api/generate
     "width": 1920,
     "height": 1080,
     "duration": 5,
+    "fps": 10,
     "highlight_color": "#ff0000",
     "text_color": "#ffffff",
     "background_color": "#000000",
@@ -51,6 +52,7 @@ POST /api/generate
 | width | integer | Yes | - | Video width in pixels (256-4096) |
 | height | integer | Yes | - | Video height in pixels (256-4096) |
 | duration | integer | Yes | - | Video duration in seconds (1-60) |
+| fps | integer | Yes | - | Frames per second (1-60) |
 | highlight_color | string | No | "#FFFF00" | Color of the highlight box (hex) |
 | text_color | string | No | "#000000" | Color of the text (hex) |
 | background_color | string | No | "#FFFFFF" | Background color (hex) |
@@ -147,7 +149,8 @@ curl -X POST https://your-domain.com/api/generate \
     "highlighted_text": "Hello World",
     "width": 1920,
     "height": 1080,
-    "duration": 5
+    "duration": 5,
+    "fps": 10
   }'
 
 # Check status
@@ -167,7 +170,8 @@ response = requests.post('https://your-domain.com/api/generate', json={
     'highlighted_text': 'Hello World',
     'width': 1920,
     'height': 1080,
-    'duration': 5
+    'duration': 5,
+    'fps': 10
 })
 video_id = response.json()['video_id']
 

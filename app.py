@@ -808,10 +808,28 @@ def api_generate():
             return jsonify({'error': 'No JSON data provided'}), 400
 
         # Validate required fields
-        required_fields = ['highlighted_text', 'width', 'height', 'duration']
+        required_fields = ['highlighted_text', 'width', 'height', 'duration', 'fps']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        # Add default values for optional parameters (matching index.html defaults)
+        params = {
+            # Required parameters
+            'width': data['width'],
+            'height': data['height'],
+            'fps': data['fps'],
+            'duration': data['duration'],
+            'highlighted_text': data['highlighted_text'],
+            
+            # Optional parameters with defaults from index.html
+            'highlight_color': data.get('highlight_color', '#00f7ff'),  # Default from index.html
+            'text_color': data.get('text_color', '#ffffff'),          # Default from index.html
+            'background_color': data.get('background_color', '#0a0a0a'), # Default from index.html
+            'blur_type': data.get('blur_type', 'radial'),             # Default from index.html
+            'blur_radius': data.get('blur_radius', 4.0),              # Default from index.html
+            'ai_enabled': data.get('ai_enabled', True)
+        }
 
         # Generate unique video ID
         video_id = str(uuid.uuid4())
@@ -829,7 +847,7 @@ def api_generate():
         # Start background thread for video generation
         thread = threading.Thread(
             target=generate_video_background,
-            args=(video_id, data)
+            args=(video_id, params)
         )
         thread.daemon = True  # Thread will be killed when main program exits
         thread.start()

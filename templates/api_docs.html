@@ -213,6 +213,7 @@
     "width": 1920,
     "height": 1080,
     "duration": 5,
+    "fps": 10,
     "highlight_color": "#ff0000",
     "text_color": "#ffffff",
     "background_color": "#000000",
@@ -256,6 +257,13 @@
                         <td>Yes</td>
                         <td>-</td>
                         <td>Video duration in seconds (1-60)</td>
+                    </tr>
+                    <tr>
+                        <td>fps</td>
+                        <td>integer</td>
+                        <td>Yes</td>
+                        <td>-</td>
+                        <td>Frames per second (1-60)</td>
                     </tr>
                     <tr>
                         <td>highlight_color</td>
@@ -342,7 +350,8 @@ curl -X POST {{ request.host_url }}api/generate \
     "highlighted_text": "Hello World",
     "width": 1920,
     "height": 1080,
-    "duration": 5
+    "duration": 5,
+    "fps": 10
   }'
 
 # Check status
@@ -362,7 +371,8 @@ response = requests.post('{{ request.host_url }}api/generate', json={
     'highlighted_text': 'Hello World',
     'width': 1920,
     'height': 1080,
-    'duration': 5
+    'duration': 5,
+    'fps': 10
 })
 video_id = response.json()['video_id']
 
