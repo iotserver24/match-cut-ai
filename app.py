@@ -8,6 +8,7 @@ import requests  # For making HTTP requests
 from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
+import threading  # Add threading support
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -645,6 +646,18 @@ class VideoTracker:
         }
         self.cleanup_old_entries()
     
+    def get_status(self, video_id):
+        """Get the current status of a video generation."""
+        return self.video_status.get(video_id)
+    
+    def update_status(self, video_id, status, video_url=None):
+        """Update the status of a video generation."""
+        if video_id in self.video_status:
+            self.video_status[video_id].update({
+                'status': status,
+                'video_url': video_url
+            })
+    
     def cleanup_old_entries(self):
         cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
         for ip in list(self.generations.keys()):
@@ -772,6 +785,20 @@ def download_file(filename):
         flash('An error occurred while trying to serve the file.', 'error')
         return redirect(url_for('index'))
 
+def generate_video_background(video_id, params):
+    """Generate video in background thread."""
+    try:
+        generated_filename, error = generate_video(params)
+        if error:
+            tracker.update_status(video_id, 'failed', None)
+        else:
+            video_url = url_for('download_file', filename=generated_filename, _external=True)
+            tracker.update_status(video_id, 'completed', video_url)
+    except Exception as e:
+        print(f"Error in background video generation: {e}")
+        traceback.print_exc()
+        tracker.update_status(video_id, 'failed', None)
+
 @app.route('/api/generate', methods=['POST'])
 @limiter.limit("10 per minute")
 def api_generate():
@@ -798,6 +825,14 @@ def api_generate():
 
         # Start video generation in background
         tracker.add_generation(request.remote_addr, video_id)
+        
+        # Start background thread for video generation
+        thread = threading.Thread(
+            target=generate_video_background,
+            args=(video_id, data)
+        )
+        thread.daemon = True  # Thread will be killed when main program exits
+        thread.start()
         
         # Return immediate response with video ID
         return jsonify({
