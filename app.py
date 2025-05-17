@@ -151,8 +151,14 @@ def generate_ai_text_snippet(highlighted_text, min_lines, max_lines):
     )
 
     try:
-        # Make request to Pollinations API
-        response = requests.get(f"{POLLINATIONS_API_URL}/{prompt}&model=mistral")
+        # Make request to Pollinations API with correct URL format
+        response = requests.get(
+            f"{POLLINATIONS_API_URL}/prompt",
+            params={
+                'prompt': prompt,
+                'model': 'mistral'
+            }
+        )
         response.raise_for_status()  # Raise exception for bad status codes
         
         # Get the text content from response
