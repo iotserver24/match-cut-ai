@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 import threading  # Add threading support
 import redis  # For Redis integration
+import json
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -764,6 +765,8 @@ def generate():
         # Generate unique video ID
         video_id = str(uuid.uuid4())
         print(f"Generated video ID: {video_id}")
+        # Set status in Redis as soon as video_id is created
+        set_video_status_redis(video_id, "processing")
         
         # --- Trigger the generation ---
         generated_filename, error = generate_video(params)
@@ -887,35 +890,21 @@ def get_video_url(video_id):
 def generate_video_background(video_id, params):
     """Background task for video generation with Catbox upload."""
     try:
-        # Update status to processing
-        tracker.update_status(video_id, "processing")
-        
-        # Generate the video
+        set_video_status_redis(video_id, "processing")
         generated_filename, error = generate_video(params)
         if error:
-            tracker.update_status(video_id, "error", error)
+            set_video_status_redis(video_id, "failed", error=error)
             return
         video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
-        # Upload to Catbox
         catbox_url = upload_to_catbox(video_path)
-        
         if catbox_url:
-            # Store in Redis if available
             if redis_client is not None:
-                if store_video_metadata(video_id, catbox_url):
-                    print(f"Successfully stored video metadata in Redis for video {video_id}")
-                else:
-                    print(f"Failed to store video metadata in Redis for video {video_id}")
-            else:
-                print("Redis not available, skipping metadata storage")
-            
-            # Update status with Catbox URL
-            tracker.update_status(video_id, "completed", catbox_url)
+                store_video_metadata(video_id, catbox_url)
+            set_video_status_redis(video_id, "completed", video_url=catbox_url)
         else:
-            tracker.update_status(video_id, "error", "Failed to upload to Catbox")
+            set_video_status_redis(video_id, "failed", error="Failed to upload to Catbox")
     except Exception as e:
-        print(f"Error in video generation background task: {e}")
-        tracker.update_status(video_id, "error", str(e))
+        set_video_status_redis(video_id, "failed", error=str(e))
 
 @app.route('/api/generate', methods=['POST'])
 @limiter.limit("10 per minute")
@@ -951,6 +940,8 @@ def api_generate():
 
         # Generate unique video ID
         video_id = str(uuid.uuid4())
+        # Set status in Redis as soon as video_id is created
+        set_video_status_redis(video_id, "processing")
         
         # Check rate limits
         if not tracker.can_generate(request.remote_addr):
@@ -983,32 +974,26 @@ def api_generate():
 
 @app.route('/api/status/<video_id>', methods=['GET'])
 def api_status(video_id):
-    status = tracker.get_status(video_id)
+    status = get_video_status_redis(video_id)
     if not status:
         return jsonify({'error': 'Video ID not found'}), 404
-    
     return jsonify(status)
 
 @app.route('/api/video/<video_id>', methods=['GET'])
 def api_video(video_id):
-    """Get video URL from Redis."""
-    if redis_client is None:
-        return jsonify({
-            'status': 'error',
-            'message': 'Redis service is not available'
-        }), 503
-        
-    video_url = get_video_url(video_id)
-    if video_url:
+    status = get_video_status_redis(video_id)
+    if not status:
+        return jsonify({'error': 'Video not ready or not found'}), 404
+    if status.get('status') == 'completed' and status.get('video_url'):
         return jsonify({
             'status': 'success',
             'video_id': video_id,
-            'video_url': video_url.decode('utf-8')
+            'video_url': status['video_url']
         })
-    return jsonify({
-        'status': 'error',
-        'message': 'Video not found'
-    }), 404
+    elif status.get('status') == 'failed':
+        return jsonify({'error': status.get('error', 'Video generation failed')}), 400
+    else:
+        return jsonify({'error': 'Video not ready or not found'}), 404
 
 @app.route('/api/docs')
 def api_docs():
@@ -1018,6 +1003,26 @@ def api_docs():
 @app.before_request
 def before_request_cleanup():
     cleanup_old_videos()
+
+# --- Redis Status Helpers ---
+def set_video_status_redis(video_id, status, video_url=None, error=None):
+    if redis_client is None:
+        return
+    data = {
+        "status": status,
+        "created_at": datetime.now().isoformat(),
+        "video_url": video_url,
+        "error": error
+    }
+    redis_client.setex(f"status:{video_id}", 30 * 24 * 60 * 60, json.dumps(data))
+
+def get_video_status_redis(video_id):
+    if redis_client is None:
+        return None
+    data = redis_client.get(f"status:{video_id}")
+    if data:
+        return json.loads(data)
+    return None
 
 # --- Main Execution ---
 if __name__ == '__main__':
