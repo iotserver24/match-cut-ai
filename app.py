@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
 import threading  # Add threading support
-import redis
 
 import matplotlib.font_manager as fm
 import numpy as np
@@ -20,16 +19,6 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from moviepy import ImageSequenceClip  # Use .editor for newer moviepy versions
 from werkzeug.utils import secure_filename
-
-# Load environment variables
-load_dotenv()
-
-# --- Upstash Redis Configuration ---
-UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL", "https://cosmic-titmouse-15186.upstash.io")
-UPSTASH_REDIS_TOKEN = os.getenv("UPSTASH_REDIS_TOKEN", "ATtSAAIjcDEyN2QxYTg0Y2U0ZjI0NWM2YTkyZTVkNmQyZTQwMTFlYnAxMA")
-
-# --- Catbox Configuration ---
-CATBOX_API_URL = "https://catbox.moe/user/api.php"
 
 # --- AI Text Generation Settings ---
 POLLINATIONS_API_URL = "https://text.pollinations.ai"
@@ -639,18 +628,6 @@ class VideoTracker:
     def __init__(self):
         self.generations = {}  # IP -> list of (timestamp, filename)
         self.video_status = {}  # video_id -> status info
-        
-        # Initialize Redis connection if credentials are available
-        self.redis_client = None
-        if UPSTASH_REDIS_URL and UPSTASH_REDIS_TOKEN:
-            try:
-                self.redis_client = redis.Redis.from_url(
-                    UPSTASH_REDIS_URL,
-                    password=UPSTASH_REDIS_TOKEN
-                )
-                print("Connected to Upstash Redis successfully")
-            except Exception as e:
-                print(f"Failed to connect to Redis: {e}")
     
     def can_generate(self, ip):
         today = datetime.now().date()
@@ -662,56 +639,24 @@ class VideoTracker:
         if ip not in self.generations:
             self.generations[ip] = []
         self.generations[ip].append((datetime.now(), video_id))
-        status_data = {
+        self.video_status[video_id] = {
             'status': 'processing',
             'created_at': datetime.now().isoformat(),
-            'video_url': None,
-            'catbox_url': None
+            'video_url': None
         }
-        self.video_status[video_id] = status_data
-        
-        # Store in Redis if available
-        if self.redis_client:
-            try:
-                self.redis_client.hset(f"video:{video_id}", mapping=status_data)
-            except Exception as e:
-                print(f"Redis error storing video status: {e}")
-                
         self.cleanup_old_entries()
     
     def get_status(self, video_id):
         """Get the current status of a video generation."""
-        # Try to get from Redis first
-        if self.redis_client:
-            try:
-                redis_data = self.redis_client.hgetall(f"video:{video_id}")
-                if redis_data:
-                    return {k.decode('utf-8'): v.decode('utf-8') for k, v in redis_data.items()}
-            except Exception as e:
-                print(f"Redis error retrieving video status: {e}")
-        
-        # Fall back to in-memory storage
         return self.video_status.get(video_id)
     
-    def update_status(self, video_id, status, video_url=None, catbox_url=None):
+    def update_status(self, video_id, status, video_url=None):
         """Update the status of a video generation."""
         if video_id in self.video_status:
-            status_data = {
+            self.video_status[video_id].update({
                 'status': status,
-            }
-            if video_url is not None:
-                status_data['video_url'] = video_url
-            if catbox_url is not None:
-                status_data['catbox_url'] = catbox_url
-                
-            self.video_status[video_id].update(status_data)
-            
-            # Update in Redis if available
-            if self.redis_client:
-                try:
-                    self.redis_client.hset(f"video:{video_id}", mapping=status_data)
-                except Exception as e:
-                    print(f"Redis error updating video status: {e}")
+                'video_url': video_url
+            })
     
     def cleanup_old_entries(self):
         cutoff = datetime.now() - timedelta(minutes=app.config['CLEANUP_MINUTES'])
@@ -722,29 +667,6 @@ class VideoTracker:
                 del self.generations[ip]
 
 tracker = VideoTracker()
-
-# --- Catbox Upload Function ---
-def upload_to_catbox(file_path):
-    """Upload a file to Catbox.moe and return the URL if successful."""
-    try:
-        print(f"Uploading file to Catbox: {file_path}")
-        
-        with open(file_path, 'rb') as file:
-            files = {'fileToUpload': file}
-            data = {'reqtype': 'fileupload'}
-            
-            response = requests.post(CATBOX_API_URL, files=files, data=data)
-            
-            if response.status_code == 200 and response.text.startswith('https://'):
-                catbox_url = response.text.strip()
-                print(f"File uploaded successfully to Catbox: {catbox_url}")
-                return catbox_url
-            else:
-                print(f"Catbox upload failed: {response.text}")
-                return None
-    except Exception as e:
-        print(f"Error uploading to Catbox: {e}")
-        return None
 
 # --- Cleanup Function ---
 def cleanup_old_videos():
@@ -871,13 +793,7 @@ def generate_video_background(video_id, params):
             tracker.update_status(video_id, 'failed', None)
         else:
             video_url = url_for('download_file', filename=generated_filename, _external=True)
-            
-            # Upload to Catbox
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
-            catbox_url = upload_to_catbox(file_path)
-            
-            # Update status with both URLs
-            tracker.update_status(video_id, 'completed', video_url, catbox_url)
+            tracker.update_status(video_id, 'completed', video_url)
     except Exception as e:
         print(f"Error in background video generation: {e}")
         traceback.print_exc()
@@ -961,16 +877,10 @@ def api_video(video_id):
     if not status or status['status'] != 'completed':
         return jsonify({'error': 'Video not ready or not found'}), 404
     
-    response_data = {
+    return jsonify({
         'video_url': status['video_url'],
         'download_url': f'/download/{video_id}'
-    }
-    
-    # Add Catbox URL if available
-    if 'catbox_url' in status and status['catbox_url']:
-        response_data['catbox_url'] = status['catbox_url']
-    
-    return jsonify(response_data)
+    })
 
 @app.route('/api/docs')
 def api_docs():
