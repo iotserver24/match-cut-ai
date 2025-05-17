@@ -750,12 +750,21 @@ def download_file(filename):
     try:
         # Check if it's a preview request (no download parameter)
         as_attachment = request.args.get('download', 'false').lower() == 'true'
-        return send_from_directory(
+        
+        # Set proper headers for video files
+        response = send_from_directory(
             app.config["UPLOAD_FOLDER"], 
-            filename, 
-            as_attachment=as_attachment,
-            mimetype='video/mp4'
+            filename,
+            mimetype='video/mp4',
+            as_attachment=as_attachment
         )
+        
+        # Add content disposition header for downloads
+        if as_attachment:
+            response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+        
+        return response
+        
     except FileNotFoundError:
         flash('Error: File not found. It might have been deleted or generation failed.', 'error')
         return redirect(url_for('index'))

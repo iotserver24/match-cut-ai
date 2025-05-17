@@ -160,7 +160,8 @@
 
         <section>
             <h2>Base URL</h2>
-            <pre><code>http://127.0.0.1:5000/api</code></pre>
+            <pre><code>{{ request.host_url }}api</code></pre>
+            <p class="note">Replace with your actual domain when deployed.</p>
         </section>
 
         <section>
@@ -184,7 +185,7 @@
             <div class="endpoint">
                 <h3>Generate Video</h3>
                 <span class="method post">POST</span>
-                <code>/api/generate</code>
+                <code>{{ request.host_url }}api/generate</code>
 
                 <h4>Request Body</h4>
                 <pre><code>{
@@ -278,14 +279,14 @@
     "video_id": "550e8400-e29b-41d4-a716-446655440000",
     "status": "processing",
     "message": "Video generation started",
-    "status_url": "/api/status/550e8400-e29b-41d4-a716-446655440000"
+    "status_url": "{{ request.host_url }}api/status/550e8400-e29b-41d4-a716-446655440000"
 }</code></pre>
             </div>
 
             <div class="endpoint">
                 <h3>Check Status</h3>
                 <span class="method get">GET</span>
-                <code>/api/status/{video_id}</code>
+                <code>{{ request.host_url }}api/status/{video_id}</code>
 
                 <h4>Response</h4>
                 <pre><code>{
@@ -298,12 +299,12 @@
             <div class="endpoint">
                 <h3>Get Video</h3>
                 <span class="method get">GET</span>
-                <code>/api/video/{video_id}</code>
+                <code>{{ request.host_url }}api/video/{video_id}</code>
 
                 <h4>Response</h4>
                 <pre><code>{
-    "video_url": "http://127.0.0.1:5000/video/550e8400-e29b-41d4-a716-446655440000.mp4",
-    "download_url": "http://127.0.0.1:5000/download/550e8400-e29b-41d4-a716-446655440000"
+    "video_url": "{{ request.host_url }}video/550e8400-e29b-41d4-a716-446655440000.mp4",
+    "download_url": "{{ request.host_url }}download/550e8400-e29b-41d4-a716-446655440000"
 }</code></pre>
             </div>
         </section>
@@ -314,7 +315,7 @@
             <div class="example">
                 <h4>cURL</h4>
                 <pre><code># Generate video
-curl -X POST http://127.0.0.1:5000/api/generate \
+curl -X POST {{ request.host_url }}api/generate \
   -H "Content-Type: application/json" \
   -d '{
     "highlighted_text": "Hello World",
@@ -324,10 +325,10 @@ curl -X POST http://127.0.0.1:5000/api/generate \
   }'
 
 # Check status
-curl http://127.0.0.1:5000/api/status/550e8400-e29b-41d4-a716-446655440000
+curl {{ request.host_url }}api/status/550e8400-e29b-41d4-a716-446655440000
 
 # Get video
-curl http://127.0.0.1:5000/api/video/550e8400-e29b-41d4-a716-446655440000</code></pre>
+curl {{ request.host_url }}api/video/550e8400-e29b-41d4-a716-446655440000</code></pre>
             </div>
 
             <div class="example">
@@ -335,7 +336,7 @@ curl http://127.0.0.1:5000/api/video/550e8400-e29b-41d4-a716-446655440000</code>
                 <pre><code>import requests
 
 # Generate video
-response = requests.post('http://127.0.0.1:5000/api/generate', json={
+response = requests.post('{{ request.host_url }}api/generate', json={
     'highlighted_text': 'Hello World',
     'width': 1920,
     'height': 1080,
@@ -344,11 +345,11 @@ response = requests.post('http://127.0.0.1:5000/api/generate', json={
 video_id = response.json()['video_id']
 
 # Check status
-status = requests.get(f'http://127.0.0.1:5000/api/status/{video_id}').json()
+status = requests.get(f'{{ request.host_url }}api/status/{video_id}').json()
 
 # Get video URL when ready
 if status['status'] == 'completed':
-    video = requests.get(f'http://127.0.0.1:5000/api/video/{video_id}').json()
+    video = requests.get(f'{{ request.host_url }}api/video/{video_id}').json()
     print(f"Video URL: {video['video_url']}")</code></pre>
             </div>
         </section>
