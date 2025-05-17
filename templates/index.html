@@ -235,6 +235,27 @@
             box-shadow: 0 0 20px rgba(0, 247, 255, 0.4);
             color: var(--bg-color);
         }
+
+        .api-docs-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: var(--bg-color);
+            text-decoration: none;
+            border-radius: 5px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        }
+
+        .api-docs-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+        }
     </style>
 </head>
 <body>
@@ -264,6 +285,11 @@
         {% endif %}
 
         <div class="form-container">
+            <header>
+                <h1>Text Match Cut</h1>
+                <div class="brand">Made by: R3AP3R editz</div>
+                <a href="/api/docs" class="api-docs-btn">API Documentation</a>
+            </header>
             <form method="POST" action="{{ url_for('generate') }}" id="videoForm">
                 <div class="form-group">
                     <label for="highlighted_text">Highlighted Text:</label>
