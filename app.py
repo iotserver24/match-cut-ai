@@ -808,7 +808,7 @@ def api_generate():
             return jsonify({'error': 'No JSON data provided'}), 400
 
         # Validate required fields
-        required_fields = ['highlighted_text', 'width', 'height', 'duration', 'fps']
+        required_fields = ['highlighted_text', 'width', 'height', 'duration']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -818,11 +818,11 @@ def api_generate():
             # Required parameters
             'width': data['width'],
             'height': data['height'],
-            'fps': data['fps'],
             'duration': data['duration'],
             'highlighted_text': data['highlighted_text'],
             
             # Optional parameters with defaults from index.html
+            'fps': data.get('fps', 5),                    # Default fps to 5
             'highlight_color': data.get('highlight_color', '#00f7ff'),  # Default from index.html
             'text_color': data.get('text_color', '#ffffff'),          # Default from index.html
             'background_color': data.get('background_color', '#0a0a0a'), # Default from index.html

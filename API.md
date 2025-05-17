@@ -37,12 +37,13 @@ POST /api/generate
     "width": 1920,
     "height": 1080,
     "duration": 5,
-    "fps": 10,
-    "highlight_color": "#ff0000",
+    "fps": 5,
+    "highlight_color": "#00f7ff",
     "text_color": "#ffffff",
-    "background_color": "#000000",
-    "blur_type": "gaussian",
-    "blur_radius": 10
+    "background_color": "#0a0a0a",
+    "blur_type": "radial",
+    "blur_radius": 4.0,
+    "ai_enabled": true
 }
 ```
 
@@ -52,12 +53,13 @@ POST /api/generate
 | width | integer | Yes | - | Video width in pixels (256-4096) |
 | height | integer | Yes | - | Video height in pixels (256-4096) |
 | duration | integer | Yes | - | Video duration in seconds (1-60) |
-| fps | integer | Yes | - | Frames per second (1-60) |
-| highlight_color | string | No | "#FFFF00" | Color of the highlight box (hex) |
-| text_color | string | No | "#000000" | Color of the text (hex) |
-| background_color | string | No | "#FFFFFF" | Background color (hex) |
-| blur_type | string | No | "gaussian" | Type of blur ("gaussian" or "radial") |
+| fps | integer | No | 5 | Frames per second (1-60) |
+| highlight_color | string | No | "#00f7ff" | Color of the highlight box (hex) |
+| text_color | string | No | "#ffffff" | Color of the text (hex) |
+| background_color | string | No | "#0a0a0a" | Background color (hex) |
+| blur_type | string | No | "radial" | Type of blur ("gaussian" or "radial") |
 | blur_radius | float | No | 4.0 | Blur effect radius |
+| ai_enabled | boolean | No | true | Whether to use AI for text generation |
 
 #### Response
 
@@ -149,8 +151,7 @@ curl -X POST https://your-domain.com/api/generate \
     "highlighted_text": "Hello World",
     "width": 1920,
     "height": 1080,
-    "duration": 5,
-    "fps": 10
+    "duration": 5
   }'
 
 # Check status
@@ -170,8 +171,7 @@ response = requests.post('https://your-domain.com/api/generate', json={
     'highlighted_text': 'Hello World',
     'width': 1920,
     'height': 1080,
-    'duration': 5,
-    'fps': 10
+    'duration': 5
 })
 video_id = response.json()['video_id']
 
@@ -190,6 +190,8 @@ if status['status'] == 'completed':
 - Maximum video duration is 60 seconds
 - Maximum video dimensions are 4096x4096 pixels
 - Minimum video dimensions are 256x256 pixels
+- FPS must be between 1 and 60
+- Duration must be between 1 and 60 seconds
 
 ---
 
