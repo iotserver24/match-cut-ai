@@ -1,0 +1,310 @@
+:root {
+    --primary-color: #4dabf7; /* Softer blue */
+    --secondary-color: #7950f2; /* Softer purple */
+    --accent-color: #20c997; /* Teal/Mint for highlights */
+    --bg-color: #1a1a2e; /* Deep, calming dark background */
+    --card-bg: rgba(30, 30, 50, 0.8); /* Slightly darker card with transparency */
+    --text-color: #e0e0e0; /* Light grey for readability */
+    --border-color: rgba(77, 171, 247, 0.2); /* Subtler border */
+    --input-bg: rgba(40, 40, 70, 0.6); /* Darker input background */
+    --hover-glow: rgba(77, 171, 247, 0.4); /* Subtler hover glow */
+    --button-hover-glow: rgba(121, 80, 242, 0.5); /* Button hover glow */
+}
+
+body {
+    font-family: 'Inter', sans-serif; /* More professional font */
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    padding: 2rem;
+    line-height: 1.6;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Orbitron', sans-serif; /* Keep some sci-fi touch for headings */
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+}
+
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--secondary-color);
+}
+
+/* Bento Box Layout */
+.container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); /* Responsive columns */
+    gap: 1.5rem; /* Spacing between boxes */
+    max-width: 1200px; /* Maximum container width */
+    width: 100%;
+}
+
+.bento-box {
+    background: var(--card-bg);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+}
+
+/* Specific Box Styling */
+.form-box {
+    grid-column: span 1; /* Adjust span as needed */
+    /* Consider adjusting grid-row if specific stacking is required */
+}
+
+.video-box {
+    grid-column: span 1; /* Adjust span as needed */
+    /* Consider adjusting grid-row if specific stacking is required */
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Center video vertically */
+    align-items: center; /* Center video horizontally */
+}
+
+.result-box {
+    grid-column: span 1; /* Adjust span as needed */
+    /* Consider adjusting grid-row if specific stacking is required */
+}
+
+/* Form Styling */
+.form-group {
+    margin-bottom: 1.2rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="color"],
+select {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-color);
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23e0e0e0" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>'); /* Lighter arrow */
+    background-repeat: no-repeat;
+    background-position: right 0.8rem center;
+    background-size: 1.2em;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 8px var(--hover-glow);
+}
+
+input[type="color"] {
+    height: 45px; /* Slightly adjusted height */
+    padding: 0.3rem;
+    cursor: pointer;
+}
+
+option, optgroup {
+    background: var(--bg-color); /* Darker background for options */
+    color: var(--text-color);
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+}
+
+button {
+    background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+    color: #ffffff; /* White text for button */
+    border: none;
+    padding: 0.9rem 1.5rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    width: 100%;
+    margin-top: 1.5rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 15px var(--button-hover-glow);
+    background: linear-gradient(45deg, var(--secondary-color), var(--primary-color)); /* Reverse gradient on hover */
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: linear-gradient(45deg, #5a5a5a, #7a7a7a);
+    box-shadow: none;
+    transform: none;
+}
+
+/* Results and Errors */
+.result, .error {
+    margin-top: 1.5rem;
+    padding: 1.2rem;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+.result {
+    background: rgba(77, 171, 247, 0.1); /* Lighter blue background */
+    border: 1px solid var(--primary-color);
+    color: var(--text-color);
+}
+
+.error {
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid #ff4d4d; /* Brighter red for error */
+    color: #ff4d4d;
+}
+
+/* Loading State */
+.loading {
+    display: flex; /* Use flex for centering */
+    flex-direction: column;
+    align-items: center;
+    margin-top: 2rem;
+    text-align: center;
+}
+
+.loading p {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--primary-color);
+    margin-bottom: 0.8rem;
+}
+
+.loading img {
+    width: 40px;
+    height: 40px;
+    filter: hue-rotate(180deg); /* Still a cool effect */
+    animation: spin 2s linear infinite; /* Add a subtle spin animation */
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Video Preview */
+.video-preview {
+    margin: 1.5rem 0; /* Adjusted margin */
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color); /* Added border to video container */
+}
+
+.video-preview video {
+    width: 100%;
+    max-width: 100%; /* Ensure it fits within the container */
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px; /* Slightly smaller border-radius than container */
+}
+
+/* Download Button */
+.download-btn {
+    display: inline-block;
+    background: linear-gradient(45deg, var(--primary-color), var(--accent-color)); /* Use accent color for download */
+    color: #ffffff;
+    padding: 0.7rem 1.2rem;
+    border-radius: 6px;
+    margin-top: 1rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+    width: 250px;
+    overflow: hidden;
+    flex-wrap: wrap;
+    word-wrap: break-word;
+}
+
+.download-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 15px rgba(32, 201, 151, 0.5); /* Accent color glow */
+    color: #ffffff;
+    background: linear-gradient(45deg, var(--accent-color), var(--primary-color));
+}
+
+/* API Docs Button */
+.api-docs-btn {
+    display: inline-block;
+    margin-top: 15px;
+    padding: 0.6rem 1rem;
+    background: rgba(77, 171, 247, 0.1); /* Subtle background */
+    color: var(--primary-color);
+    text-decoration: none;
+    border-radius: 5px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85em;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.api-docs-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 10px var(--hover-glow);
+    background: rgba(77, 171, 247, 0.2);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    body {
+        padding: 1rem;
+    }
+
+    .container {
+        grid-template-columns: 1fr; /* Stack columns on smaller screens */
+        gap: 1rem;
+    }
+
+    .bento-box {
+        padding: 1rem;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    button {
+        padding: 0.8rem 1.2rem;
+        font-size: 0.9rem;
+    }
+}
