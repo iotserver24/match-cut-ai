@@ -5,42 +5,328 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Text Match Cut Video Generator</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../static/generalStyle.css">
-    <link rel="stylesheet" href="../static/generalStyleForm.css">
     <style>
-       
+        :root {
+            --primary-color: #00f7ff;
+            --secondary-color: #ff00ff;
+            --bg-color: #0a0a0a;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-color: #ffffff;
+            --border-color: rgba(0, 247, 255, 0.3);
+        }
 
-        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 247, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 20%);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .brand {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-top: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .form-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.1);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--primary-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="color"],
+        select {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid var(--primary-color);
+            border-radius: 8px;
+            color: var(--primary-color);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url('data:image/svg+xml;utf8,<svg fill="%2300f7ff" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.5em;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 10px var(--secondary-color);
+        }
+
+        option, optgroup {
+            background: #181818;
+            color: var(--primary-color);
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 10px rgba(0, 247, 255, 0.3);
+        }
+
+        input[type="color"] {
+            height: 50px;
+            padding: 0.3rem;
+            cursor: pointer;
+        }
+
+        button {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: var(--bg-color);
+            border: none;
+            padding: 1rem 2rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .result, .error {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .result {
+            background: rgba(0, 247, 255, 0.1);
+            border: 1px solid var(--primary-color);
+        }
+
+        .error {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .loading p {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .loading img {
+            width: 50px;
+            height: 50px;
+            filter: hue-rotate(180deg);
+        }
+
+        a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-family: 'Orbitron', sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        a:hover {
+            color: var(--secondary-color);
+            text-shadow: 0 0 10px rgba(0, 247, 255, 0.5);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        .video-preview {
+            margin: 2rem 0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.2);
+        }
+
+        .video-preview video {
+            width: 100%;
+            max-width: 800px;
+            display: block;
+            margin: 0 auto;
+            border-radius: 10px;
+        }
+
+        .download-btn {
+            display: inline-block;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: var(--bg-color);
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.4);
+            color: var(--bg-color);
+        }
+
+        .api-docs-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: var(--bg-color);
+            text-decoration: none;
+            border-radius: 5px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        }
+
+        .api-docs-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header Box (Optional, or integrate into form/status box) -->
-        <div class="bento-box header-box">
+        <div class="header">
             <h1>Text Match Cut Video Generator</h1>
             <div class="brand">Made by: R3AP3R editz</div>
-             <a href="./api_docs.html" class="api-docs-btn">API Documentation</a>
         </div>
-    
-        <!-- Form Box -->
-        <div class="bento-box form-box">
-            <h2>Video Customization</h2>
+
+        {% if error %}
+            <div class="error">
+                <strong>Error:</strong> {{ error }}
+            </div>
+        {% endif %}
+
+        {% if filename %}
+            <div class="result">
+                <p>Video generated successfully!</p>
+                <div class="video-preview">
+                    <video controls autoplay loop>
+                        <source src="{{ url_for('download_file', filename=filename) }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <a href="{{ url_for('download_file', filename=filename) }}" download class="download-btn">Download {{ filename }}</a>
+            </div>
+        {% endif %}
+
+        <div class="form-container">
+            <header>
+                <h1>Text Match Cut</h1>
+                <div class="brand">Made by: R3AP3R editz</div>
+                <a href="/api/docs" class="api-docs-btn">API Documentation</a>
+            </header>
             <form method="POST" action="{{ url_for('generate') }}" id="videoForm">
                 <div class="form-group">
                     <label for="highlighted_text">Highlighted Text:</label>
                     <input type="text" id="highlighted_text" name="highlighted_text" value="Mother of Dragons" required>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="duration">Duration (seconds):</label>
                     <input type="number" id="duration" name="duration" value="5" min="1" max="30" required>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="fps">Frames Per Second (FPS):</label>
                     <input type="number" id="fps" name="fps" value="10" min="1" max="30" required>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="video_format">Video Format:</label>
                     <select id="video_format" name="video_format" onchange="updateResolution()">
@@ -62,32 +348,32 @@
                         </optgroup>
                     </select>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="width">Video Width (px):</label>
                     <input type="number" id="width" name="width" value="1920" min="256" max="4096" required>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="height">Video Height (px):</label>
                     <input type="number" id="height" name="height" value="1080" min="256" max="4096" required>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="highlight_color">Highlight Color:</label>
                     <input type="color" id="highlight_color" name="highlight_color" value="#00f7ff">
                 </div>
-    
+
                 <div class="form-group">
                     <label for="text_color">Text Color:</label>
                     <input type="color" id="text_color" name="text_color" value="#ffffff">
                 </div>
-    
+
                 <div class="form-group">
                     <label for="background_color">Background Color:</label>
                     <input type="color" id="background_color" name="background_color" value="#0a0a0a">
                 </div>
-    
+
                 <div class="form-group">
                     <label for="blur_type">Blur Type:</label>
                     <select id="blur_type" name="blur_type">
@@ -96,49 +382,20 @@
                         <option value="none">None</option>
                     </select>
                 </div>
-    
+
                 <div class="form-group">
                     <label for="blur_radius">Blur Radius:</label>
                     <input type="number" id="blur_radius" name="blur_radius" value="4.0" step="0.1" min="0" max="50" required>
                 </div>
+
                 <button type="submit" id="generateButton">Generate Video</button>
-                
             </form>
         </div>
-        
-    
-        <!-- Status and Video Preview Box -->
-        <div class="bento-box status-preview-box">
-            <h2>Status & Preview</h2>
-    
-            <!-- Loading Indicator (Initially hidden by CSS) -->
-            <div class="loading" id="loadingIndicator">
-                <p>Generating video... This may take a minute or two.</p>
-                <img src="https://i.gifer.com/ZZ5H.gif" alt="Loading...">
-            </div>
-    
-            <!-- Error Message (Initially hidden or controlled by backend) -->
-            {% if error %}
-                <div class="error">
-                    <strong>Error:</strong> {{ error }}
-                </div>
-            {% endif %}
-    
-            <!-- Result and Video Preview (Initially hidden or controlled by backend) -->
-            {% if filename %}
-                <div class="result">
-                    <p>Video generated successfully!</p>
-                    <div class="video-preview">
-                        <video controls autoplay loop>
-                            <source src="{{ url_for('download_file', filename=filename) }}" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
-                    <a href="{{ url_for('download_file', filename=filename) }}" download class="download-btn">Download {{ filename }}</a>
-                </div>
-            {% endif %}
+
+        <div class="loading" id="loadingIndicator">
+            <p>Generating video... This may take a minute or two.</p>
+            <img src="https://i.gifer.com/ZZ5H.gif" alt="Loading...">
         </div>
-    
     </div>
 
     <script>
