@@ -767,45 +767,40 @@ def generate():
         
         # --- Trigger the generation ---
         generated_filename, error = generate_video(params)
-
         if error:
             print(f"Error generating video: {error}")
             return render_template('index.html', error=error)
-        else:
-            # Get the full path of the generated video
-            video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
-            print(f"Video generated successfully at: {video_path}")
-            
-            # Upload to Catbox
-            print("Starting Catbox upload...")
-            catbox_url = upload_to_catbox(video_path)
-            
-            if catbox_url:
-                print(f"Catbox upload successful. URL: {catbox_url}")
-                # Store in Redis if available
-                if redis_client is not None:
-                    if store_video_metadata(video_id, catbox_url):
-                        print(f"Successfully stored in Redis - ID: {video_id}, URL: {catbox_url}")
-                    else:
-                        print(f"Failed to store in Redis - ID: {video_id}")
+        video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
+        print(f"Video generated successfully at: {video_path}")
+        # Upload to Catbox
+        print("Starting Catbox upload...")
+        catbox_url = upload_to_catbox(video_path)
+        
+        if catbox_url:
+            print(f"Catbox upload successful. URL: {catbox_url}")
+            # Store in Redis if available
+            if redis_client is not None:
+                if store_video_metadata(video_id, catbox_url):
+                    print(f"Successfully stored in Redis - ID: {video_id}, URL: {catbox_url}")
                 else:
-                    print("Redis not available, skipping metadata storage")
-                
-                # Render index page with both local and Catbox URLs
-                return render_template('index.html', 
-                    filename=generated_filename,
-                    video_id=video_id,
-                    catbox_url=catbox_url,
-                    success_message="Video generated and uploaded successfully!"
-                )
+                    print(f"Failed to store in Redis - ID: {video_id}")
             else:
-                print("Catbox upload failed")
-                # If Catbox upload fails, still show the local file
-                return render_template('index.html', 
-                    filename=generated_filename,
-                    error="Video generated but failed to upload to Catbox. You can still download it locally."
-                )
-
+                print("Redis not available, skipping metadata storage")
+            
+            # Render index page with both local and Catbox URLs
+            return render_template('index.html', 
+                filename=generated_filename,
+                video_id=video_id,
+                catbox_url=catbox_url,
+                success_message="Video generated and uploaded successfully!"
+            )
+        else:
+            print("Catbox upload failed")
+            # If Catbox upload fails, still show the local file
+            return render_template('index.html', 
+                filename=generated_filename,
+                error="Video generated but failed to upload to Catbox. You can still download it locally."
+            )
     except Exception as e:
         print(f"An unexpected error occurred in /generate route: {e}")
         traceback.print_exc()
@@ -896,29 +891,28 @@ def generate_video_background(video_id, params):
         tracker.update_status(video_id, "processing")
         
         # Generate the video
-        video_path = generate_video(params)
+        generated_filename, error = generate_video(params)
+        if error:
+            tracker.update_status(video_id, "error", error)
+            return
+        video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
+        # Upload to Catbox
+        catbox_url = upload_to_catbox(video_path)
         
-        if video_path:
-            # Upload to Catbox
-            catbox_url = upload_to_catbox(video_path)
-            
-            if catbox_url:
-                # Store in Redis if available
-                if redis_client is not None:
-                    if store_video_metadata(video_id, catbox_url):
-                        print(f"Successfully stored video metadata in Redis for video {video_id}")
-                    else:
-                        print(f"Failed to store video metadata in Redis for video {video_id}")
+        if catbox_url:
+            # Store in Redis if available
+            if redis_client is not None:
+                if store_video_metadata(video_id, catbox_url):
+                    print(f"Successfully stored video metadata in Redis for video {video_id}")
                 else:
-                    print("Redis not available, skipping metadata storage")
-                
-                # Update status with Catbox URL
-                tracker.update_status(video_id, "completed", catbox_url)
+                    print(f"Failed to store video metadata in Redis for video {video_id}")
             else:
-                tracker.update_status(video_id, "error", "Failed to upload to Catbox")
-        else:
-            tracker.update_status(video_id, "error", "Failed to generate video")
+                print("Redis not available, skipping metadata storage")
             
+            # Update status with Catbox URL
+            tracker.update_status(video_id, "completed", catbox_url)
+        else:
+            tracker.update_status(video_id, "error", "Failed to upload to Catbox")
     except Exception as e:
         print(f"Error in video generation background task: {e}")
         tracker.update_status(video_id, "error", str(e))
