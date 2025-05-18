@@ -850,6 +850,9 @@ def upload_to_catbox(file_path):
             response = requests.post(CATBOX_API_URL, files=files, data=data)
             response.raise_for_status()
             catbox_url = response.text.strip()
+            # Clean any potential bad characters from the URL
+            if catbox_url and isinstance(catbox_url, str):
+                catbox_url = catbox_url.rstrip(';,')
             print(f"Successfully uploaded to Catbox. URL: {catbox_url}")
             return catbox_url
     except Exception as e:
@@ -993,7 +996,64 @@ def api_status(video_id):
 def api_video(video_id):
     """Get video URL for a generated video by ID."""
     try:
-        # First, try to get status from Redis (new method)
+        print(f"API video request for ID: {video_id}")
+        
+        # DIRECT check of both Redis keys first
+        if redis_client:
+            # Try status key first (new format)
+            status_key = f"status:{video_id}"
+            status_data = redis_client.get(status_key)
+            if status_data:
+                try:
+                    # Clean and parse the data
+                    if isinstance(status_data, bytes):
+                        status_str = status_data.decode('utf-8').rstrip(';,')
+                    else:
+                        status_str = str(status_data).rstrip(';,')
+                    
+                    # Try to repair common JSON errors
+                    if '";' in status_str:
+                        status_str = status_str.replace('";', '"')
+                    
+                    status_json = json.loads(status_str)
+                    print(f"Status from Redis: {status_json}")
+                    
+                    if status_json.get('status') == 'completed' and status_json.get('video_url'):
+                        # Found completed video
+                        video_url = status_json.get('video_url')
+                        if video_url:
+                            # Ensure URL is clean
+                            video_url = video_url.rstrip(';,') if isinstance(video_url, str) else video_url
+                            return jsonify({
+                                'status': 'success',
+                                'video_id': video_id,
+                                'video_url': video_url
+                            })
+                except Exception as e:
+                    print(f"Error parsing status data: {e}")
+            
+            # Try direct URL key (legacy format)
+            url_key = f"video:{video_id}"
+            url_data = redis_client.get(url_key)
+            if url_data:
+                try:
+                    if isinstance(url_data, bytes):
+                        url_str = url_data.decode('utf-8').rstrip(';,')
+                    else:
+                        url_str = str(url_data).rstrip(';,')
+                        
+                    print(f"URL from Redis: {url_str}")
+                    # Set status for future requests
+                    set_video_status_redis(video_id, "completed", video_url=url_str)
+                    return jsonify({
+                        'status': 'success',
+                        'video_id': video_id,
+                        'video_url': url_str
+                    })
+                except Exception as e:
+                    print(f"Error processing URL data: {e}")
+        
+        # If direct check failed, try standard helper methods as fallback
         status = get_video_status_redis(video_id)
         
         if status and status.get('status') == 'completed' and status.get('video_url'):
@@ -1009,6 +1069,11 @@ def api_video(video_id):
                 'status': 'error',
                 'error': status.get('error', 'Video generation failed')
             }), 400
+        elif status and status.get('status') == 'processing':
+            return jsonify({
+                'status': 'processing',
+                'message': 'Video is still being generated'
+            })
         
         # If status not found or incomplete, try the legacy method (direct URL lookup)
         video_url = get_video_url(video_id)
@@ -1036,6 +1101,7 @@ def api_video(video_id):
         }), 404
     except Exception as e:
         print(f"Unexpected error in api_video endpoint: {e}")
+        traceback.print_exc()  # Print the full traceback for debugging
         return jsonify({
             'status': 'error',
             'error': f'Server error: {str(e)}'
@@ -1059,9 +1125,9 @@ def set_video_status_redis(video_id, status, video_url=None, error=None):
     
     key = f"status:{video_id}"
     
-    # Clean the video_url if it exists to remove any stray characters
+    # Clean the video_url if it exists to ensure no malformed characters
     if video_url and isinstance(video_url, str):
-        video_url = video_url.rstrip(';,')
+        video_url = video_url.strip().rstrip(';,')
         
     data = {
         "status": status,
@@ -1071,7 +1137,12 @@ def set_video_status_redis(video_id, status, video_url=None, error=None):
     }
     
     try:
+        # Ensure clean JSON data - no trailing characters
         json_data = json.dumps(data)
+        # Double check the JSON is valid (won't actually re-serialize)
+        json.loads(json_data)
+        
+        # Store in Redis
         result = redis_client.setex(key, 30 * 24 * 60 * 60, json_data)
         print(f"Redis setex result for {key}: {result}")
         print(f"Status data stored in Redis: {json_data}")
