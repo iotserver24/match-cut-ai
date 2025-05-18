@@ -224,199 +224,21 @@ def create_radial_blur_mask(width, height, center_x, center_y, sharp_radius, fad
 
 def create_text_image_frame(width, height, text_lines, highlight_line_index, highlighted_text,
                             font_path, font_size, text_color, bg_color, highlight_color,
-                            blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor):
+                            blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor,
+                            background_style):
     """Creates a single frame image with centered highlight and multi-line text."""
-
-    # --- Font Loading ---
-    try:
-        font = ImageFont.truetype(font_path, font_size)
-        bold_font = font  # Start with regular as fallback
-        # Simple bold variant check (can be improved)
-        common_bold_suffixes = ["bd.ttf", "-Bold.ttf", "b.ttf", "_Bold.ttf", " Bold.ttf"]
-        base_name, ext = os.path.splitext(font_path)
-        for suffix in common_bold_suffixes:
-            potential_bold_path = base_name.replace("Regular", "").replace("regular",
-                                                                           "") + suffix  # Try removing 'Regular' too
-            if os.path.exists(potential_bold_path):
-                try:
-                    bold_font = ImageFont.truetype(potential_bold_path, font_size)
-                    # print(f"    Using bold variant: {os.path.basename(potential_bold_path)}") # Debug
-                    break  # Use the first one found
-                except IOError:
-                    continue  # Try next suffix if loading fails
-            # Check without removing Regular if first checks failed
-            potential_bold_path = base_name + suffix
-            if os.path.exists(potential_bold_path):
-                try:
-                    bold_font = ImageFont.truetype(potential_bold_path, font_size)
-                    # print(f"    Using bold variant: {os.path.basename(potential_bold_path)}") # Debug
-                    break
-                except IOError:
-                    continue
-
-    except IOError as e:
-        raise FontLoadError(f"Failed to load font: {font_path}") from e
-    except Exception as e:  # Catch other potential font loading issues
-        raise FontLoadError(f"Unexpected error loading font {font_path}: {e}") from e
-
-    # --- Calculations ---
-    try:
-        # Line height using getmetrics()
-        try:
-             ascent, descent = font.getmetrics()
-             metric_height = ascent + abs(descent)
-             line_height = int(metric_height * vertical_spread_factor)
-        except AttributeError:
-             bbox_line_test = font.getbbox("Ay", anchor="lt")
-             line_height = int((bbox_line_test[3] - bbox_line_test[1]) * vertical_spread_factor)
-        if line_height <= font_size * 0.8:
-            line_height = int(font_size * 1.2 * vertical_spread_factor)
-
-        # BOLD font metrics for final highlight placement
-        highlight_width_bold = bold_font.getlength(highlighted_text)
-        highlight_bbox_h = bold_font.getbbox(highlighted_text, anchor="lt")
-        highlight_height_bold = highlight_bbox_h[3] - highlight_bbox_h[1]
-        if highlight_width_bold <= 0 or highlight_height_bold <= 0:
-             highlight_height_bold = int(font_size * 1.1)
-             if highlight_width_bold <=0: highlight_width_bold = len(highlighted_text) * font_size * 0.6
-
-        # Target position for the TOP-LEFT of the final BOLD highlight text (CENTERED)
-        highlight_target_x = (width - highlight_width_bold) / 2
-        highlight_target_y = (height - highlight_height_bold) / 2
-
-        # Block start Y calculated relative to the centered highlight's top
-        block_start_y = highlight_target_y - (highlight_line_index * line_height)
-
-        # Get Prefix and Suffix for background alignment
-        highlight_line_full_text = text_lines[highlight_line_index]
-        prefix_text = ""
-        suffix_text = "" # Also get suffix now
-        highlight_found_in_line = False
-        try:
-            start_index = highlight_line_full_text.index(highlighted_text)
-            end_index = start_index + len(highlighted_text)
-            prefix_text = highlight_line_full_text[:start_index]
-            suffix_text = highlight_line_full_text[end_index:]
-            highlight_found_in_line = True
-        except ValueError: pass # Treat line normally if not found
-
-        # Measure Prefix Width using REGULAR font (for background positioning)
-        prefix_width_regular = font.getlength(prefix_text)
-        # Calculate the required starting X for the background highlight line string
-        # This is the coordinate used for drawing the *full string* in the background
-        bg_highlight_line_start_x = highlight_target_x - prefix_width_regular
-
-    except AttributeError: raise FontDrawError(f"Font lacks methods.")
-    except Exception as e: raise FontDrawError(f"Measurement fail: {e}") from e
-
-    # --- Base Image Drawing (Draw FULL lines, use offset for HL line) ---
-    # Render onto img_base normally first
-    img_base = Image.new('RGB', (width, height), color=bg_color)
-    draw_base = ImageDraw.Draw(img_base)
-    try:
-        current_y = block_start_y
-        for i, line in enumerate(text_lines):
-            line_x = 0.0
-            if i == highlight_line_index and highlight_found_in_line:
-                line_x = bg_highlight_line_start_x
-            else:
-                line_width = font.getlength(line)
-                line_x = (width - line_width) / 2
-            draw_base.text((line_x, current_y), line, font=font, fill=text_color, anchor="lt")
-            current_y += line_height
-    except Exception as e: raise FontDrawError(f"Base draw fail: {e}") from e
-
-    # --- Apply Blur (with padding for Gaussian to avoid edge clipping) ---
-    img_blurred = None # Initialize
-    padding_for_blur = int(blur_radius * 3) # Padding based on blur radius
-
-    if blur_type == 'gaussian' and blur_radius > 0:
-        try:
-            # Create larger canvas
-            padded_width = width + 2 * padding_for_blur
-            padded_height = height + 2 * padding_for_blur
-            img_padded = Image.new('RGB', (padded_width, padded_height), color=bg_color)
-            # Paste original centered onto padded canvas
-            img_padded.paste(img_base, (padding_for_blur, padding_for_blur))
-            # Blur the padded image
-            img_padded_blurred = img_padded.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            # Crop the center back to original size
-            img_blurred = img_padded_blurred.crop((padding_for_blur, padding_for_blur,
-                                                  padding_for_blur + width, padding_for_blur + height))
-        except Exception as e:
-            print(f"Error during padded Gaussian blur: {e}. Falling back to direct blur.")
-            img_blurred = img_base.filter(ImageFilter.GaussianBlur(radius=blur_radius)) # Fallback
-
-
-    elif blur_type == 'radial' and blur_radius > 0:
-        # For radial, we need img_sharp. Let's try drawing it *in parts* for reliability
-        # as the padded blur trick doesn't apply directly here.
-        img_sharp = Image.new('RGB', (width, height), color=bg_color)
-        draw_sharp = ImageDraw.Draw(img_sharp)
-        try:
-            current_y = block_start_y
-            for i, line in enumerate(text_lines):
-                if i == highlight_line_index and highlight_found_in_line:
-                    # --- Draw Sharp Highlight Line in Parts ---
-                    # Calculate positions relative to the *final* centered highlight target
-                    prefix_x = highlight_target_x - prefix_width_regular
-                    # Use REGULAR font for the sharp layer (it's just for the mask)
-                    draw_sharp.text((prefix_x, current_y), prefix_text, font=font, fill=text_color, anchor="lt")
-                    # Highlight part itself starts at highlight_target_x
-                    highlight_width_regular = font.getlength(highlighted_text) # Width in regular font
-                    draw_sharp.text((highlight_target_x, current_y), highlighted_text, font=font, fill=text_color, anchor="lt")
-                    # Suffix starts after the regular highlight width
-                    suffix_x = highlight_target_x + highlight_width_regular
-                    draw_sharp.text((suffix_x, current_y), suffix_text, font=font, fill=text_color, anchor="lt")
-                else:
-                    # Draw non-highlight lines centered normally
-                    line_width = font.getlength(line)
-                    line_x = (width - line_width) / 2
-                    draw_sharp.text((line_x, current_y), line, font=font, fill=text_color, anchor="lt")
-                current_y += line_height
-        except Exception as e:
-             raise FontDrawError(f"Failed sharp text draw (parts): {e}") from e
-
-        # Composite blurred base and sharp center
-        # Base image (img_base) still uses the offset drawing method for full line
-        img_fully_blurred = img_base.filter(ImageFilter.GaussianBlur(radius=blur_radius * 1.5))
-        sharp_center_radius = min(width, height) * radial_sharp_radius_factor
-        fade_radius = sharp_center_radius + max(width, height) * 0.15
-        mask = create_radial_blur_mask(width, height, width / 2, height / 2, sharp_center_radius, fade_radius)
-        img_blurred = Image.composite(img_sharp, img_fully_blurred, mask)
-
-    else: # No blur
-        img_blurred = img_base.copy()
-
-
-    # --- Final Image: Draw ONLY Highlight Rectangle & Centered BOLD Text ---
-    final_img = img_blurred # Start with the blurred/composited image
-    draw_final = ImageDraw.Draw(final_img)
-    try:
-        # 1. Draw highlight rectangle (centered using bold metrics)
-        padding = font_size * 0.10
-        draw_final.rectangle(
-            [
-                (highlight_target_x - padding, highlight_target_y - padding),
-                (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
-            ],
-            fill=highlight_color
-        )
-
-        # 2. Draw ONLY the SHARP highlight text using BOLD font at the *perfectly centered* position
-        draw_final.text(
-            (highlight_target_x, highlight_target_y),
-            highlighted_text,
-            font=bold_font, # Use BOLD font
-            fill=text_color,
-            anchor="lt"
-        )
-        # *** No prefix/suffix drawing here ***
-
-    except Exception as e:
-         raise FontDrawError(f"Failed final highlight draw: {e}") from e
-
-    return final_img
+    print(f"APP.PY: Called create_text_image_frame with background_style='{background_style}'")
+    
+    # Now import and call the actual implementation from text_effect
+    from text_effect import create_text_image_frame as text_effect_create_frame
+    
+    # Call the implementation in text_effect.py
+    return text_effect_create_frame(
+        width, height, text_lines, highlight_line_index, highlighted_text,
+        font_path, font_size, text_color, bg_color, highlight_color,
+        blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor,
+        background_style
+    )
 
 
 # --- Core Video Generation Logic (Adapted from main) ---
@@ -435,7 +257,27 @@ def generate_video(params):
     blur_type = params['blur_type']
     blur_radius = params['blur_radius']
     ai_enabled = params['ai_enabled']
+    background_style = params.get('background_style', 'solid')  # Default to solid if not provided
     font_dir = app.config['FONT_DIR'] # Use font dir from Flask config
+
+    # Add explicit debug prints about background_style
+    print("=" * 50)
+    print(f"BACKGROUND STYLE DEBUG: Using style '{background_style}'")
+    print("Parameters for video generation:")
+    print(f"- width: {width}")
+    print(f"- height: {height}")
+    print(f"- fps: {fps}")
+    print(f"- duration: {duration_seconds}")
+    print(f"- highlighted_text: {highlighted_text}")
+    print(f"- highlight_color: {highlight_color}")
+    print(f"- text_color: {text_color}")
+    print(f"- background_color: {background_color}")
+    print(f"- blur_type: {blur_type}")
+    print(f"- blur_radius: {blur_radius}")
+    print(f"- ai_enabled: {ai_enabled}")
+    print(f"- background_style: {background_style}")
+    print(f"- font_dir: {font_dir}")
+    print("=" * 50)
 
     # Hardcoded or derived settings from original script
     font_size_ratio = 0.05 # Could be made a parameter
@@ -463,146 +305,119 @@ def generate_video(params):
             # font_paths.extend(fm.findSystemFonts(fontpaths=None, fontext='otf'))
         except Exception as e:
             print(f"Error finding system fonts: {e}")
+            font_paths = []
 
-    if not font_paths:
-        print("ERROR: No fonts found in font dir or system. Cannot proceed.")
-        return None, "No fonts found. Please add fonts to the 'fonts' directory or install system fonts."
-
-    print(f"Found {len(font_paths)} potential fonts.")
-
-    # --- Pre-generate Text Snippets ---
-    text_snippets_pool = []
-    print(f"Generating text snippets (AI: {ai_enabled})...")
-
-    generation_attempts = 0
-    max_generation_attempts = unique_text_count * 4 # Allow more attempts
-
-    while len(text_snippets_pool) < unique_text_count and generation_attempts < max_generation_attempts:
-        generation_attempts += 1
-        if ai_enabled:
-            print(f"  Attempting AI generation ({generation_attempts})...")
-            lines, hl_index = generate_ai_text_snippet(highlighted_text, min_lines, max_lines)
-            if lines is None or hl_index == -1:
-                 print("    AI generation failed or invalid. Will retry or use random.")
-                 time.sleep(0.5) # Small delay before retry
-                 # Fallback to random if AI keeps failing near the end
-                 if generation_attempts > max_generation_attempts // 2:
-                     print("    AI failed repeatedly, falling back to random for this snippet.")
-                     lines, hl_index = generate_random_text_snippet(highlighted_text, min_lines, max_lines)
-            else:
-                print(f"    AI snippet generated ({len(lines)} lines).")
-
-        else: # Use random if AI disabled or failed fallback
-            print("  Generating random text snippet...")
-            lines, hl_index = generate_random_text_snippet(highlighted_text, min_lines, max_lines)
-
-        # Add successfully generated snippet to pool
-        if lines and hl_index != -1:
-             text_snippets_pool.append({"lines": lines, "highlight_index": hl_index})
-
-    if not text_snippets_pool:
-        print("ERROR: Failed to generate any text snippets (AI or random).")
-        return None, "Failed to generate text content for the video."
-
-    print(f"Generated {len(text_snippets_pool)} text snippets for the pool.")
-
-    # --- Calculate Other Parameters ---
-    total_frames = int(fps * duration_seconds)
-    # Calculate font size based on height dynamically
-    font_size = int(height * font_size_ratio)
-    print(f"\nVideo Settings: {width}x{height} @ {fps}fps, {duration_seconds}s ({total_frames} frames)")
-    print(f"Text Settings: Highlight='{highlighted_text}', Size={font_size}px")
-    print(f"Effect Settings: BlurType='{blur_type}', BlurRadius={blur_radius}, HighlightColor='{highlight_color}'")
-
-    # --- Generate Frames ---
+    # --- Video Generation ---
+    num_frames = int(duration_seconds * fps)
+    font_size = int(min(width, height) * font_size_ratio)
     frames = []
+    
+    # Failed font tracking to avoid repeated failures
     failed_fonts = set()
-    print("\nGenerating frames...")
-    frame_num = 0
-    while frame_num < total_frames:
-        # print(f"  Attempting Frame {frame_num + 1}/{total_frames}") # Can be verbose
+    
+    # Ensure we have usable fonts
+    if not font_paths:
+        return None, "No usable fonts found."
 
-        # Select a text snippet and font for this frame
-        snippet = random.choice(text_snippets_pool)
-        current_lines = snippet["lines"]
-        highlight_idx = snippet["highlight_index"]
+    # --- Generate Pool of Text Snippets First ---
+    text_snippets = []
+    highlight_line_indices = []
+    
+    # Use AI generation if enabled, function available, and API working
+    if ai_enabled and "generate_ai_text_snippet" in globals():
+        print("Generating AI text...")
+        # Try AI generation with retry
+        for _ in range(unique_text_count):
+            for attempt in range(3):  # 3 tries per snippet
+                lines, hl_index = generate_ai_text_snippet(highlighted_text, min_lines, max_lines)
+                if lines and hl_index >= 0:
+                    text_snippets.append(lines)
+                    highlight_line_indices.append(hl_index)
+                    break
+                time.sleep(1)  # Give API a sec before retrying
+    
+    # If AI failed or not enough snippets, use fallback
+    while len(text_snippets) < unique_text_count:
+        lines, hl_index = generate_random_text_snippet(highlighted_text, min_lines, max_lines)
+        text_snippets.append(lines)
+        highlight_line_indices.append(hl_index)
 
-        font_retries = 0
+    if not text_snippets:
+        return None, "Failed to generate any valid text snippets."
+
+    # --- Generate Frames Using Text Snippets ---
+    unique_fonts_per_snippet = {}  # track which fonts to use with which snippet
+    
+    for snippet_idx, (text_lines, hl_idx) in enumerate(zip(text_snippets, highlight_line_indices)):
+        unique_fonts_per_snippet[snippet_idx] = []
+        # Decide on a few random fonts for this snippet
+        usable_fonts = [f for f in font_paths if f not in failed_fonts]
+        if not usable_fonts:
+            return None, "No usable fonts after filtering failed ones."
+        font_count = min(5, len(usable_fonts))
+        unique_fonts_per_snippet[snippet_idx] = random.sample(usable_fonts, font_count)
+    
+    print(f"Generating {num_frames} frames...")
+    for frame_index in range(num_frames):
+        # Select text snippet pattern to use (rotate through available ones)
+        snippet_idx = frame_index % len(text_snippets)
+        text_lines = text_snippets[snippet_idx]
+        highlight_line_index = highlight_line_indices[snippet_idx]
+        
+        # Try different fonts if needed
         frame_generated = False
-        while font_retries < MAX_FONT_RETRIES_PER_FRAME:
-            current_font_path = get_random_font(font_paths, exclude_list=failed_fonts)
-            if current_font_path is None:
-                # This now returns None only if EVERYTHING fails, including fallback
-                return None, "No usable fonts available after multiple attempts."
-
+        
+        for font_try in range(MAX_FONT_RETRIES_PER_FRAME):
             try:
-                img = create_text_image_frame(
-                    width, height,
-                    current_lines, highlight_idx, highlighted_text,
-                    current_font_path, font_size,
-                    text_color, background_color, highlight_color,
-                    blur_type, blur_radius, radial_sharp_radius_factor,
-                    vertical_spread_factor
+                if not unique_fonts_per_snippet[snippet_idx]:
+                    # If all fonts for this snippet failed, try all remaining usable fonts
+                    font_path = get_random_font(font_paths, failed_fonts)
+                else:
+                    # Use one of the pre-selected fonts for this snippet
+                    font_path = random.choice(unique_fonts_per_snippet[snippet_idx])
+                
+                if not font_path:
+                    print("Error: get_random_font returned None, no fonts available.")
+                    return None, "No usable fonts remaining after failures."
+                
+                # Generate the frame with the selected font
+                print(f"Creating frame with font={os.path.basename(font_path)}, background_style='{background_style}'")
+                frame = create_text_image_frame(
+                    width, height, text_lines, highlight_line_index, highlighted_text,
+                    font_path, font_size, text_color, background_color, highlight_color,
+                    blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor,
+                    background_style  # Pass the background style parameter
                 )
-
-                frame_np = np.array(img)
-                frames.append(frame_np)
+                
+                frames.append(frame)
                 frame_generated = True
-                # print(f"    Frame {frame_num + 1} generated with font: {os.path.basename(current_font_path)}")
-                break # Success, move to next frame attempt
+                break
 
             except (FontLoadError, FontDrawError) as e:
-                print(f"    Warning: Font '{os.path.basename(current_font_path)}' failed for frame {frame_num + 1}. ({e}). Retrying with another font.")
-                failed_fonts.add(current_font_path)
-                font_retries += 1
-                # Check if we've run out of fonts to try for this frame
-                if len(failed_fonts) >= len(font_paths):
-                     print(f"    ERROR: All available fonts failed for frame {frame_num + 1}. Trying system fallback once more.")
-                     # Try the matplotlib fallback directly if list exhausted
-                     fallback_font = get_random_font([], exclude_list=failed_fonts) # Trigger fallback explicitly
-                     if fallback_font and fallback_font not in failed_fonts:
-                          failed_fonts.add(fallback_font) # Add it so we don't retry infinitely
-                          font_retries = 0 # Reset retries for the fallback font
-                          print(f"    Attempting frame {frame_num + 1} with fallback font: {fallback_font}")
-                          continue # Re-enter the loop to try drawing with fallback
-                     else:
-                          print(f"    ERROR: Even fallback font failed or wasn't found. Skipping frame {frame_num + 1}.")
-                          frame_generated = False # Mark as not generated
-                          break # Break font retry loop for this frame
-
+                # Add to failed fonts list
+                if font_try < MAX_FONT_RETRIES_PER_FRAME - 1: # Don't log exhaustively
+                    print(f"  Font error on frame {frame_index}, attempt {font_try+1}: {e}")
+                failed_fonts.add(font_path)
+                # Remove from snippet's fonts if needed
+                if font_path in unique_fonts_per_snippet[snippet_idx]:
+                    unique_fonts_per_snippet[snippet_idx].remove(font_path)
+                continue
+            
             except Exception as e:
-                print(f"    ERROR: Unexpected error generating frame {frame_num + 1} with font {os.path.basename(current_font_path)}: {e}")
-                traceback.print_exc() # Log full error
-                failed_fonts.add(current_font_path)
-                font_retries += 1
-
+                print(f"Unexpected error on frame {frame_index}: {e}")
+                return None, f"Unexpected error during frame generation: {e}"
+        
         if not frame_generated:
-            print(f"ERROR: Failed to generate Frame {frame_num + 1} after {MAX_FONT_RETRIES_PER_FRAME} font attempts. Stopping video generation.")
-            # Decide whether to stop entirely or just make a shorter video
-            # For a web app, stopping might be better than returning a broken/short video.
-            return None, f"Failed to generate frame {frame_num + 1}. Font issues likely. Check font compatibility."
-            # break # Or use break to create a shorter video
+            return None, f"Failed to generate frame {frame_index} after {MAX_FONT_RETRIES_PER_FRAME} font attempts."
+        
+        # Progress indicator for long-running generations
+        if frame_index % max(1, num_frames // 10) == 0:
+            print(f"  Generated frame {frame_index+1}/{num_frames}")
 
-        frame_num += 1
-        # Add progress update for long renders
-        if frame_num % (total_frames // 10) == 0 or frame_num == total_frames: # Update every 10%
-             print(f"  Progress: {frame_num}/{total_frames} frames generated...")
-
-
-    # --- Create Video ---
-    if not frames:
-        print("ERROR: No frames were generated. Cannot create video.")
-        return None, "No frames were generated, possibly due to persistent font errors."
-
-    if len(frames) < total_frames:
-        print(f"Warning: Only {len(frames)}/{total_frames} frames were generated due to errors. Video will be shorter.")
-
-    # Generate unique filename
-    unique_id = uuid.uuid4()
-    output_filename = f"text_match_cut_{unique_id}.mp4"
+    # Create a video file
+    output_filename = f"text_match_cut_{int(time.time())}.mp4"
     output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
-
-    print(f"\nCompiling video to {output_path}...")
+    
     try:
         # Ensure frames is a list of numpy arrays
         if not isinstance(frames[0], np.ndarray):
@@ -745,6 +560,7 @@ def generate():
             'background_color': request.form.get('background_color', default='#FFFFFF'),
             'blur_type': request.form.get('blur_type', default='gaussian'),
             'blur_radius': request.form.get('blur_radius', default=4.0, type=float),
+            'background_style': request.form.get('background_style', default='solid'),
             'ai_enabled': True,
         }
 
@@ -761,53 +577,33 @@ def generate():
         if not (256 <= params['width'] <= 4096) or not (256 <= params['height'] <= 4096):
              flash('Width and Height must be between 256 and 4096 pixels.', 'error')
              return redirect(url_for('index'))
+        
+        # Validate background style
+        valid_styles = ['solid', 'newspaper', 'old_paper']
+        if params['background_style'] not in valid_styles:
+            params['background_style'] = 'solid'  # Default to solid if invalid
 
-        # Generate unique video ID
+        # --- Generate a unique video ID ---
         video_id = str(uuid.uuid4())
-        print(f"Generated video ID: {video_id}")
-        # Set status in Redis as soon as video_id is created
-        set_video_status_redis(video_id, "processing")
-        
-        # --- Trigger the generation ---
-        generated_filename, error = generate_video(params)
-        if error:
-            print(f"Error generating video: {error}")
-            return render_template('index.html', error=error)
-        video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
-        print(f"Video generated successfully at: {video_path}")
-        # Upload to Catbox
-        print("Starting Catbox upload...")
-        catbox_url = upload_to_catbox(video_path)
-        
-        if catbox_url:
-            print(f"Catbox upload successful. URL: {catbox_url}")
-            # Store in Redis if available
-            if redis_client is not None:
-                if store_video_metadata(video_id, catbox_url):
-                    print(f"Successfully stored in Redis - ID: {video_id}, URL: {catbox_url}")
-                else:
-                    print(f"Failed to store in Redis - ID: {video_id}")
-            else:
-                print("Redis not available, skipping metadata storage")
-            
-            # Render index page with both local and Catbox URLs
-            return render_template('index.html', 
-                filename=generated_filename,
-                video_id=video_id,
-                catbox_url=catbox_url,
-                success_message="Video generated and uploaded successfully!"
-            )
-        else:
-            print("Catbox upload failed")
-            # If Catbox upload fails, still show the local file
-            return render_template('index.html', 
-                filename=generated_filename,
-                error="Video generated but failed to upload to Catbox. You can still download it locally."
-            )
+
+        # Store in tracker and Redis
+        tracker.add_generation(ip, video_id)
+        set_video_status_redis(video_id, "processing", params=params)
+
+        # Start background processing
+        threading.Thread(
+            target=generate_video_background,
+            args=(video_id, params)
+        ).start()
+
+        # Redirect to the status page instead of rendering a template
+        return redirect(url_for('status_page', video_id=video_id))
+
     except Exception as e:
-        print(f"An unexpected error occurred in /generate route: {e}")
+        error_msg = f"Error: {str(e)}"
+        flash(error_msg, 'error')
         traceback.print_exc()
-        return render_template('index.html', error=f"An unexpected server error occurred: {e}")
+        return redirect(url_for('index'))
 
 
 @app.route('/output/<filename>')
@@ -903,20 +699,37 @@ def get_video_url(video_id):
 def generate_video_background(video_id, params):
     """Background task for video generation with Catbox upload."""
     try:
+        print(f"Starting background video generation for {video_id}")
         set_video_status_redis(video_id, "processing")
+        
         generated_filename, error = generate_video(params)
+        
         if error:
+            print(f"Video generation failed for {video_id}: {error}")
             set_video_status_redis(video_id, "failed", error=error)
             return
+        
+        # If successful, update status and upload to Catbox
+        print(f"Video generation successful for {video_id}: {generated_filename}")
         video_path = os.path.join(app.config['UPLOAD_FOLDER'], generated_filename)
+        
+        # Upload to Catbox for sharing
         catbox_url = upload_to_catbox(video_path)
+        
         if catbox_url:
+            print(f"Catbox upload successful for {video_id}: {catbox_url}")
+            # Store in Redis and update status
             if redis_client is not None:
                 store_video_metadata(video_id, catbox_url)
             set_video_status_redis(video_id, "completed", video_url=catbox_url)
         else:
-            set_video_status_redis(video_id, "failed", error="Failed to upload to Catbox")
+            # If Catbox fails, still provide local URL
+            print(f"Catbox upload failed for {video_id}, using local URL")
+            local_url = url_for('download_file', filename=generated_filename, _external=True)
+            set_video_status_redis(video_id, "completed", video_url=local_url)
     except Exception as e:
+        print(f"Unexpected error during video generation for {video_id}: {e}")
+        traceback.print_exc()
         set_video_status_redis(video_id, "failed", error=str(e))
 
 @app.route('/api/generate', methods=['POST'])
@@ -948,13 +761,14 @@ def api_generate():
             'background_color': data.get('background_color', '#0a0a0a'), # Default from index.html
             'blur_type': data.get('blur_type', 'radial'),             # Default from index.html
             'blur_radius': data.get('blur_radius', 4.0),              # Default from index.html
+            'background_style': data.get('background_style', 'solid'),  # Default to solid
             'ai_enabled': data.get('ai_enabled', True)
         }
 
         # Generate unique video ID
         video_id = str(uuid.uuid4())
         # Set status in Redis as soon as video_id is created
-        set_video_status_redis(video_id, "processing")
+        set_video_status_redis(video_id, "processing", params=params)
         
         # Check rate limits
         if not tracker.can_generate(request.remote_addr):
@@ -963,34 +777,88 @@ def api_generate():
                 'message': 'Too many video generations. Please try again later.'
             }), 429
 
-        # Start video generation in background
+        # Validate specific parameters
+        if not (1 <= params['fps'] <= 60):
+            return jsonify({'error': 'FPS must be between 1 and 60'}), 400
+        if not (1 <= params['duration'] <= 60):
+            return jsonify({'error': 'Duration must be between 1 and 60 seconds'}), 400
+        if not (256 <= params['width'] <= 4096) or not (256 <= params['height'] <= 4096):
+            return jsonify({'error': 'Width and Height must be between 256 and 4096 pixels'}), 400
+            
+        # Validate background style
+        valid_styles = ['solid', 'newspaper', 'old_paper']
+        if params['background_style'] not in valid_styles:
+            params['background_style'] = 'solid'  # Default to solid if invalid
+
+        # Start processing in background
         tracker.add_generation(request.remote_addr, video_id)
         
-        # Start background thread for video generation
-        thread = threading.Thread(
+        # Start the video generation in a background thread
+        threading.Thread(
             target=generate_video_background,
             args=(video_id, params)
-        )
-        thread.daemon = True  # Thread will be killed when main program exits
-        thread.start()
+        ).start()
         
-        # Return immediate response with video ID
+        # Return immediately with the video_id
         return jsonify({
-            'video_id': video_id,
             'status': 'processing',
-            'message': 'Video generation started',
-            'status_url': f'/api/status/{video_id}'
-        }), 202
-
+            'video_id': video_id,
+            'message': 'Video generation started. Poll /api/status/{video_id} for updates.',
+            'status_url': url_for('api_status', video_id=video_id, _external=True)
+        })
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Server error',
+            'message': str(e)
+        }), 500
 
 @app.route('/api/status/<video_id>', methods=['GET'])
 def api_status(video_id):
-    status = get_video_status_redis(video_id)
-    if not status:
-        return jsonify({'error': 'Video ID not found'}), 404
-    return jsonify(status)
+    """Returns the status of a video generation."""
+    try:
+        status = get_video_status_redis(video_id)
+        
+        if status:
+            # Return the status
+            return jsonify(status)
+        
+        # If status not found, check the video URL directly
+        video_url = get_video_url(video_id)
+        if video_url:
+            # If URL exists but status doesn't, create a completed status
+            try:
+                if isinstance(video_url, bytes):
+                    url_str = video_url.decode('utf-8').rstrip(';,')
+                else:
+                    url_str = str(video_url).rstrip(';,')
+                
+                # Create status data and store it for future requests
+                status_data = {
+                    "status": "completed",
+                    "created_at": datetime.now().isoformat(),
+                    "video_url": url_str,
+                    "error": None
+                }
+                # Store the status for future requests
+                set_video_status_redis(video_id, "completed", video_url=url_str)
+                return jsonify(status_data)
+            except Exception as e:
+                print(f"Error processing video URL in status endpoint: {e}")
+        
+        # If nothing found, return not found
+        return jsonify({
+            'status': 'not_found',
+            'error': 'Video ID not found'
+        }), 404
+    except Exception as e:
+        print(f"Error in api_status endpoint: {e}")
+        traceback.print_exc()
+        return jsonify({
+            'status': 'error',
+            'error': f'Server error: {e}'
+        }), 500
 
 @app.route('/api/video/<video_id>', methods=['GET'])
 def api_video(video_id):
@@ -1117,7 +985,7 @@ def before_request_cleanup():
     cleanup_old_videos()
 
 # --- Redis Status Helpers ---
-def set_video_status_redis(video_id, status, video_url=None, error=None):
+def set_video_status_redis(video_id, status, video_url=None, error=None, params=None):
     """Store video status information in Redis."""
     if redis_client is None:
         print(f"Cannot set video status: Redis client is None")
@@ -1135,6 +1003,10 @@ def set_video_status_redis(video_id, status, video_url=None, error=None):
         "video_url": video_url,
         "error": error
     }
+    
+    # Store params if provided
+    if params:
+        data["params"] = params
     
     try:
         # Ensure clean JSON data - no trailing characters
@@ -1226,6 +1098,23 @@ def get_video_status_redis(video_id):
     except Exception as e:
         print(f"Error getting video status from Redis for ID {video_id}: {e}")
         return None
+
+@app.route('/status/<video_id>', methods=['GET'])
+def status_page(video_id):
+    """Renders the status page for a video generation."""
+    # Get video text from Redis if available
+    text = "your text"
+    
+    try:
+        status = get_video_status_redis(video_id)
+        if status and 'params' in status and 'highlighted_text' in status['params']:
+            text = status['params']['highlighted_text']
+    except Exception as e:
+        print(f"Could not retrieve highlighted text for {video_id}: {e}")
+    
+    return render_template('status.html', 
+                          video_id=video_id, 
+                          highlighted_text=text)
 
 # --- Main Execution ---
 if __name__ == '__main__':

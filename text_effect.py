@@ -43,6 +43,9 @@ MAX_FONT_RETRIES_PER_FRAME = 5
 # Generate random words only using ASCII lowercase for fallback/disabled AI
 FALLBACK_CHAR_SET = string.ascii_lowercase + " "
 
+# Background style settings
+BACKGROUND_STYLE = 'newspaper'  # Options: 'solid', 'newspaper', 'old_paper'
+BACKGROUND_TEXTURE_DIR = "static/images/backgrounds"
 
 # --- Helper Functions ---
 
@@ -158,10 +161,200 @@ def create_radial_blur_mask(width, height, center_x, center_y, sharp_radius, fad
     return mask
 
 
+def create_background_texture(width, height, style, bg_color):
+    """Creates a textured background based on the specified style.
+    
+    Args:
+        width (int): Width of the background image
+        height (int): Height of the background image
+        style (str): Background style ('solid', 'newspaper', 'old_paper', etc.)
+        bg_color (str): Background color (for solid or tinting textures)
+        
+    Returns:
+        PIL.Image: Background image with texture
+    """
+    print(f"Creating background texture: style={style}, color={bg_color}, size={width}x{height}")
+    
+    # Create base image with background color
+    img = Image.new('RGB', (width, height), color=bg_color)
+    
+    if style == 'solid':
+        print("Using solid background style")
+        # Just return the solid color background
+        return img
+    
+    # Check if texture directory exists
+    if not os.path.isdir(BACKGROUND_TEXTURE_DIR):
+        print(f"Background texture directory not found, creating: {BACKGROUND_TEXTURE_DIR}")
+        os.makedirs(BACKGROUND_TEXTURE_DIR, exist_ok=True)
+    
+    # Generate newspaper texture
+    if style == 'newspaper':
+        print("Generating newspaper style background")
+        
+        # First try - use our simple fallback that's guaranteed to work
+        try:
+            print("Using simple newspaper background generator")
+            return create_simple_newspaper_background(width, height, bg_color)
+        except Exception as e:
+            print(f"Simple newspaper background failed: {e}, trying next method")
+        
+        # Second try - use pre-generated example
+        example_path = os.path.join(BACKGROUND_TEXTURE_DIR, "newspaper_example.jpg")
+        print(f"Looking for newspaper texture at: {example_path}")
+        if os.path.exists(example_path):
+            try:
+                print(f"Found newspaper texture at {example_path}")
+                example = Image.open(example_path)
+                # Resize to match requested dimensions
+                example = example.resize((width, height), Image.LANCZOS)
+                print(f"Successfully resized newspaper texture to {width}x{height}")
+                return example
+            except Exception as e:
+                print(f"Error using example newspaper texture: {e}, generating full custom texture")
+        else:
+            print(f"Newspaper texture not found at {example_path}, generating full custom texture")
+        
+        # Generate a newspaper-like texture with columns and fake text
+        draw = ImageDraw.Draw(img)
+        
+        # Draw a light gray background instead of solid color
+        img = Image.new('RGB', (width, height), color="#f5f5f5")
+        draw = ImageDraw.Draw(img)
+        
+        # Create newspaper columns
+        col_count = random.randint(3, 4)  # 3 or 4 columns
+        col_width = width // col_count
+        col_padding = 20
+        
+        # Draw column separators
+        for i in range(1, col_count):
+            x = i * col_width
+            draw.line([(x, 0), (x, height)], fill="#dddddd", width=1)
+        
+        # Draw fake text lines in columns
+        line_height = 8
+        for col in range(col_count):
+            col_x = col * col_width + col_padding
+            max_width = col_width - (2 * col_padding)
+            
+            # Draw column header
+            header_y = random.randint(20, 40)
+            draw.rectangle([(col_x, header_y), (col_x + max_width - 10, header_y + 20)], fill="#dddddd")
+            
+            # Draw fake text lines
+            y = header_y + 40
+            while y < height - 20:
+                line_width = random.randint(int(max_width * 0.7), max_width)
+                draw.rectangle([(col_x, y), (col_x + line_width, y + 4)], fill="#dddddd")
+                y += line_height
+        
+        # Add some noise for newspaper print effect
+        for _ in range(5000):
+            x = random.randint(0, width - 1)
+            y = random.randint(0, height - 1)
+            draw.point((x, y), fill="#cccccc")
+            
+        return img
+    
+    # Generate old paper texture
+    elif style == 'old_paper':
+        print("Generating old paper style background")
+        
+        # First try - use our simple fallback that's guaranteed to work
+        try:
+            print("Using simple old paper background generator")
+            return create_simple_old_paper_background(width, height, bg_color)
+        except Exception as e:
+            print(f"Simple old paper background failed: {e}, trying next method")
+        
+        # Second try - use pre-generated example
+        example_path = os.path.join(BACKGROUND_TEXTURE_DIR, "old_paper_example.jpg")
+        if os.path.exists(example_path):
+            try:
+                print(f"Found old paper texture at {example_path}")
+                example = Image.open(example_path)
+                # Resize to match requested dimensions
+                example = example.resize((width, height), Image.LANCZOS)
+                print(f"Successfully resized old paper texture to {width}x{height}")
+                return example
+            except Exception as e:
+                print(f"Error using example old paper texture: {e}, generating full custom texture")
+        else:
+            print(f"Old paper texture not found at {example_path}, generating full custom texture")
+        
+        # Create a yellowish-brown base for old paper
+        img = Image.new('RGB', (width, height), color="#f2e8c9")
+        draw = ImageDraw.Draw(img)
+        
+        # Add paper grain texture
+        for _ in range(width * height // 100):
+            x = random.randint(0, width - 1)
+            y = random.randint(0, height - 1)
+            size = random.randint(1, 3)
+            color_variation = random.randint(-15, 10)
+            color = (210 + color_variation, 200 + color_variation, 165 + color_variation)
+            draw.ellipse((x, y, x + size, y + size), fill=color)
+        
+        # Add some coffee stain-like spots
+        for _ in range(random.randint(2, 5)):
+            stain_x = random.randint(0, width - 1)
+            stain_y = random.randint(0, height - 1)
+            stain_size = random.randint(50, 150)
+            stain_color = (random.randint(160, 180), random.randint(120, 140), random.randint(80, 100))
+            stain_alpha = random.randint(30, 70)  # Transparency of the stain
+            
+            # Create a stain mask
+            stain_mask = Image.new('L', (width, height), 0)
+            stain_draw = ImageDraw.Draw(stain_mask)
+            stain_draw.ellipse(
+                (stain_x - stain_size, stain_y - stain_size, 
+                 stain_x + stain_size, stain_y + stain_size), 
+                fill=stain_alpha
+            )
+            
+            # Blur the stain for a more natural look
+            stain_mask = stain_mask.filter(ImageFilter.GaussianBlur(radius=stain_size//4))
+            
+            # Create a stain overlay
+            stain_overlay = Image.new('RGB', (width, height), stain_color)
+            
+            # Composite the stain onto the paper
+            img = Image.composite(stain_overlay, img, stain_mask)
+        
+        # Add edge darkening for worn look
+        edge_mask = Image.new('L', (width, height), 255)
+        edge_draw = ImageDraw.Draw(edge_mask)
+        edge_width = min(width, height) // 10
+        
+        # Draw lighter center, darker edges
+        edge_draw.rectangle(
+            (edge_width, edge_width, width - edge_width, height - edge_width),
+            fill=0
+        )
+        edge_mask = edge_mask.filter(ImageFilter.GaussianBlur(radius=edge_width//2))
+        
+        # Create edge overlay
+        edge_overlay = Image.new('RGB', (width, height), (160, 140, 100))
+        
+        # Apply edge effect
+        img = Image.composite(edge_overlay, img, edge_mask)
+        
+        return img
+    
+    # Add more style options here
+    else:
+        # Default to solid background if style not recognized
+        print(f"WARNING: Unknown background style '{style}'. Using solid background.")
+        return img
+
+
 def create_text_image_frame(width, height, text_lines, highlight_line_index, highlighted_text,
                             font_path, font_size, text_color, bg_color, highlight_color,
-                            blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor):
+                            blur_type, blur_radius, radial_sharp_radius_factor, vertical_spread_factor,
+                            background_style='solid'):
     """Creates a single frame image with centered highlight and multi-line text."""
+    print(f"\nCreating frame with background_style='{background_style}', blur_type='{blur_type}'")
 
     # --- Font Loading ---
     try:
@@ -245,10 +438,12 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
     except AttributeError: raise FontDrawError(f"Font lacks methods.")
     except Exception as e: raise FontDrawError(f"Measurement fail: {e}") from e
 
-    # --- Base Image Drawing (Draw FULL lines, use offset for HL line) ---
-    # Render onto img_base normally first
-    img_base = Image.new('RGB', (width, height), color=bg_color)
+    # --- Create background with texture ---
+    print(f"Calling create_background_texture with style='{background_style}'")
+    img_base = create_background_texture(width, height, background_style, bg_color)
     draw_base = ImageDraw.Draw(img_base)
+    
+    # --- Base Image Drawing (Draw FULL lines, use offset for HL line) ---
     try:
         current_y = block_start_y
         for i, line in enumerate(text_lines):
@@ -264,14 +459,18 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
 
     # --- Apply Blur (with padding for Gaussian to avoid edge clipping) ---
     img_blurred = None # Initialize
-    padding_for_blur = int(blur_radius * 3) # Padding based on blur radius
+    padding_for_blur = int(blur_radius * 3)
 
     if blur_type == 'gaussian' and blur_radius > 0:
+        print(f"Applying gaussian blur with radius={blur_radius}")
         try:
             # Create larger canvas
             padded_width = width + 2 * padding_for_blur
             padded_height = height + 2 * padding_for_blur
-            img_padded = Image.new('RGB', (padded_width, padded_height), color=bg_color)
+            
+            # Create padded background texture
+            img_padded = create_background_texture(padded_width, padded_height, background_style, bg_color)
+            
             # Paste original centered onto padded canvas
             img_padded.paste(img_base, (padding_for_blur, padding_for_blur))
             # Blur the padded image
@@ -285,9 +484,10 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
 
 
     elif blur_type == 'radial' and blur_radius > 0:
+        print(f"Applying radial blur with radius={blur_radius}")
         # For radial, we need img_sharp. Let's try drawing it *in parts* for reliability
         # as the padded blur trick doesn't apply directly here.
-        img_sharp = Image.new('RGB', (width, height), color=bg_color)
+        img_sharp = create_background_texture(width, height, background_style, bg_color)
         draw_sharp = ImageDraw.Draw(img_sharp)
         try:
             current_y = block_start_y
@@ -322,6 +522,7 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
         img_blurred = Image.composite(img_sharp, img_fully_blurred, mask)
 
     else: # No blur
+        print("No blur applied")
         img_blurred = img_base.copy()
 
 
@@ -331,13 +532,60 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
     try:
         # 1. Draw highlight rectangle (centered using bold metrics)
         padding = font_size * 0.10
-        draw_final.rectangle(
-            [
-                (highlight_target_x - padding, highlight_target_y - padding),
-                (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
-            ],
-            fill=highlight_color
-        )
+        
+        # Customize highlight style based on background_style
+        if background_style == 'newspaper':
+            print("Applying newspaper-style highlight")
+            # For newspaper style, use a more traditional highlight (like a marker)
+            draw_final.rectangle(
+                [
+                    (highlight_target_x - padding, highlight_target_y - padding),
+                    (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
+                ],
+                fill=highlight_color,
+                outline="#000000",
+                width=1
+            )
+        elif background_style == 'old_paper':
+            print("Applying old-paper-style highlight")
+            # For old paper, use a more subtle highlight with slight transparency
+            # Create a semi-transparent overlay for the highlight
+            highlight_overlay = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            highlight_draw = ImageDraw.Draw(highlight_overlay)
+            highlight_draw.rectangle(
+                [
+                    (highlight_target_x - padding, highlight_target_y - padding),
+                    (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
+                ],
+                fill=highlight_color
+            )
+            # Convert highlight_overlay to RGB mode to match final_img
+            highlight_overlay = highlight_overlay.convert('RGB')
+            
+            # Create a mask for the highlight area
+            highlight_mask = Image.new('L', (width, height), 0)
+            highlight_mask_draw = ImageDraw.Draw(highlight_mask)
+            highlight_mask_draw.rectangle(
+                [
+                    (highlight_target_x - padding, highlight_target_y - padding),
+                    (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
+                ],
+                fill=180  # Semi-transparent (0-255)
+            )
+            
+            # Apply the highlight with the mask
+            final_img = Image.composite(highlight_overlay, final_img, highlight_mask)
+            draw_final = ImageDraw.Draw(final_img)
+        else:
+            print("Applying default-style highlight")
+            # Default highlight style
+            draw_final.rectangle(
+                [
+                    (highlight_target_x - padding, highlight_target_y - padding),
+                    (highlight_target_x + highlight_width_bold + padding, highlight_target_y + highlight_height_bold + padding)
+                ],
+                fill=highlight_color
+            )
 
         # 2. Draw ONLY the SHARP highlight text using BOLD font at the *perfectly centered* position
         draw_final.text(
@@ -352,12 +600,97 @@ def create_text_image_frame(width, height, text_lines, highlight_line_index, hig
     except Exception as e:
          raise FontDrawError(f"Failed final highlight draw: {e}") from e
 
+    print(f"Frame created successfully with background_style='{background_style}'")
     return final_img
 
 
 # Custom Exceptions for font errors
 class FontLoadError(Exception): pass
 class FontDrawError(Exception): pass
+
+
+def create_simple_newspaper_background(width, height, bg_color):
+    """Creates a simple newspaper-style background that will reliably work.
+    This is a fallback implementation for when the texture-based approach fails."""
+    print("*** Using SIMPLE NEWSPAPER BACKGROUND as a fallback ***")
+    
+    # Create base with light gray
+    img = Image.new('RGB', (width, height), color="#f5f5f5")
+    draw = ImageDraw.Draw(img)
+    
+    # Add column lines
+    columns = 4
+    column_width = width // columns
+    
+    for i in range(1, columns):
+        x = i * column_width
+        draw.line([(x, 0), (x, height)], fill="#cccccc", width=2)
+    
+    # Add some random gray rectangles to simulate text
+    for i in range(500):
+        x = random.randint(0, width - 50)
+        y = random.randint(0, height - 10)
+        w = random.randint(20, 100)
+        h = random.randint(5, 8)
+        draw.rectangle([(x, y), (x + w, y + h)], fill="#dddddd")
+    
+    # Add some noise specks
+    for i in range(5000):
+        x = random.randint(0, width - 1)
+        y = random.randint(0, height - 1)
+        draw.point((x, y), fill="#bbbbbb")
+    
+    return img
+
+
+def create_simple_old_paper_background(width, height, bg_color):
+    """Creates a simple old paper background that will reliably work.
+    This is a fallback implementation for when the texture-based approach fails."""
+    print("*** Using SIMPLE OLD PAPER BACKGROUND as a fallback ***")
+    
+    # Create base with sepia color
+    base_color = "#f2e8c9"  # Yellowish brown
+    img = Image.new('RGB', (width, height), color=base_color)
+    draw = ImageDraw.Draw(img)
+    
+    # Add grain effect
+    for i in range(width * height // 500):
+        x = random.randint(0, width - 1)
+        y = random.randint(0, height - 1)
+        size = random.randint(1, 3)
+        color_var = random.randint(-20, 10)
+        color = (210 + color_var, 200 + color_var, 165 + color_var)
+        draw.ellipse((x, y, x + size, y + size), fill=color)
+    
+    # Add dark edges
+    edge_width = min(width, height) // 10
+    
+    # Draw four edge rectangles
+    # Top edge
+    draw.rectangle([(0, 0), (width, edge_width)], 
+                   fill=(180, 160, 120))
+    # Bottom edge
+    draw.rectangle([(0, height - edge_width), (width, height)], 
+                   fill=(180, 160, 120))
+    # Left edge
+    draw.rectangle([(0, 0), (edge_width, height)], 
+                   fill=(180, 160, 120))
+    # Right edge
+    draw.rectangle([(width - edge_width, 0), (width, height)], 
+                   fill=(180, 160, 120))
+    
+    # Add a couple of coffee stains
+    for _ in range(3):
+        stain_x = random.randint(edge_width, width - edge_width)
+        stain_y = random.randint(edge_width, height - edge_width)
+        stain_size = random.randint(30, 80)
+        draw.ellipse(
+            (stain_x - stain_size, stain_y - stain_size,
+             stain_x + stain_size, stain_y + stain_size),
+            fill=(180, 150, 100)
+        )
+    
+    return img
 
 
 def main():
@@ -445,7 +778,7 @@ def main():
                     current_font_path, font_size,
                     TEXT_COLOR, BACKGROUND_COLOR, HIGHLIGHT_COLOR,
                     BLUR_TYPE, BLUR_RADIUS, RADIAL_SHARPNESS_RADIUS_FACTOR,
-                    VERTICAL_SPREAD_FACTOR
+                    VERTICAL_SPREAD_FACTOR, BACKGROUND_STYLE
                 )
 
                 frame_np = np.array(img)

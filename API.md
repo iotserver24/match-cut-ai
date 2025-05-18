@@ -41,6 +41,7 @@ POST /api/generate
     "highlight_color": "#00f7ff",
     "text_color": "#ffffff",
     "background_color": "#0a0a0a",
+    "background_style": "solid",
     "blur_type": "radial",
     "blur_radius": 4.0,
     "ai_enabled": true
@@ -57,6 +58,7 @@ POST /api/generate
 | highlight_color | string | No | "#00f7ff" | Color of the highlight box (hex) |
 | text_color | string | No | "#ffffff" | Color of the text (hex) |
 | background_color | string | No | "#0a0a0a" | Background color (hex) |
+| background_style | string | No | "solid" | Background style ("solid", "newspaper", or "old_paper") |
 | blur_type | string | No | "radial" | Type of blur ("gaussian" or "radial") |
 | blur_radius | float | No | 4.0 | Blur effect radius |
 | ai_enabled | boolean | No | true | Whether to use AI for text generation |
@@ -183,7 +185,8 @@ response = requests.post('https://your-domain.com/api/generate', json={
     'highlighted_text': 'Hello World',
     'width': 1920,
     'height': 1080,
-    'duration': 5
+    'duration': 5,
+    'background_style': 'newspaper'  # Example with newspaper style
 })
 video_id = response.json()['video_id']
 

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Generation Status - Text Match Cut</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #00f7ff;
+            --secondary-color: #ff00ff;
+            --bg-color: #0a0a0a;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-color: #ffffff;
+            --border-color: rgba(0, 247, 255, 0.3);
+            --success-color: #00ff7f;
+            --error-color: #ff3366;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(0, 247, 255, 0.1) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(255, 0, 255, 0.1) 0%, transparent 20%);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+        }
+
+        .header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .brand {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            margin-top: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        .status-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .status-title {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .status-text {
+            font-family: 'Roboto', sans-serif;
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .highlight-text {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--secondary-color);
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            background: rgba(255, 0, 255, 0.1);
+            border-radius: 8px;
+            display: inline-block;
+            margin: 0.5rem 0;
+        }
+
+        .status-progress {
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto;
+        }
+
+        .loader:after {
+            content: " ";
+            display: block;
+            width: 64px;
+            height: 64px;
+            margin: 8px;
+            border-radius: 50%;
+            border: 6px solid var(--primary-color);
+            border-color: var(--primary-color) transparent var(--secondary-color) transparent;
+            animation: loader 1.2s linear infinite;
+        }
+
+        @keyframes loader {
+            0% {
+                transform: rotate(0deg);
+            }
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .status-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: var(--bg-color);
+            border: none;
+            padding: 0.8rem 1.5rem;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .video-container {
+            display: none;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 0 20px rgba(0, 247, 255, 0.1);
+        }
+
+        .video-title {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--success-color);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .video-preview {
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .video-preview video {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .error-container {
+            display: none;
+            background: rgba(255, 51, 102, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--error-color);
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 0 20px rgba(255, 51, 102, 0.1);
+        }
+
+        .error-title {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--error-color);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+
+        .error-message {
+            font-family: 'Roboto', sans-serif;
+            font-size: 1.1rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Text Match Cut</h1>
+            <div class="brand">Video Generation Status</div>
+        </div>
+
+        <div class="status-container" id="statusContainer">
+            <h2 class="status-title">Generating Your Video</h2>
+            <p class="status-text">We're creating a text match cut video with the highlighted text:</p>
+            <div class="highlight-text">{{ highlighted_text }}</div>
+            <p class="status-text">This process may take a minute or two. Please wait...</p>
+            
+            <div class="status-progress">
+                <div class="loader"></div>
+            </div>
+            
+            <div class="status-buttons">
+                <a href="/" class="btn btn-secondary">Return to Home</a>
+            </div>
+        </div>
+
+        <div class="video-container" id="videoContainer">
+            <h2 class="video-title">Your Video is Ready!</h2>
+            <p class="status-text">Your text match cut video has been generated successfully.</p>
+            
+            <div class="video-preview">
+                <video controls id="videoPlayer">
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            
+            <div class="status-buttons">
+                <a href="#" class="btn" id="downloadBtn">Download Video</a>
+                <a href="/" class="btn btn-secondary">Create Another</a>
+            </div>
+        </div>
+
+        <div class="error-container" id="errorContainer">
+            <h2 class="error-title">Generation Failed</h2>
+            <p class="error-message" id="errorMessage">We encountered an error while generating your video.</p>
+            
+            <div class="status-buttons">
+                <a href="/" class="btn">Try Again</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoId = "{{ video_id }}";
+        const statusContainer = document.getElementById('statusContainer');
+        const videoContainer = document.getElementById('videoContainer');
+        const errorContainer = document.getElementById('errorContainer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // Function to check video status
+        async function checkVideoStatus() {
+            try {
+                const response = await fetch(`/api/status/${videoId}`);
+                const data = await response.json();
+                
+                if (data.status === 'completed' && data.video_url) {
+                    // Video is ready
+                    statusContainer.style.display = 'none';
+                    videoContainer.style.display = 'block';
+                    
+                    // Set video source
+                    const videoSource = document.createElement('source');
+                    videoSource.src = data.video_url;
+                    videoSource.type = 'video/mp4';
+                    videoPlayer.appendChild(videoSource);
+                    videoPlayer.load();
+                    
+                    // Set download link
+                    downloadBtn.href = data.video_url;
+                    downloadBtn.setAttribute('download', `text_match_cut_${videoId}.mp4`);
+                    
+                    // Stop polling
+                    clearInterval(statusInterval);
+                } else if (data.status === 'failed') {
+                    // Video generation failed
+                    statusContainer.style.display = 'none';
+                    errorContainer.style.display = 'block';
+                    
+                    if (data.error) {
+                        errorMessage.textContent = `Error: ${data.error}`;
+                    }
+                    
+                    // Stop polling
+                    clearInterval(statusInterval);
+                }
+                // If still processing, continue polling
+            } catch (error) {
+                console.error('Error checking video status:', error);
+            }
+        }
+        
+        // Check status immediately and then every 3 seconds
+        checkVideoStatus();
+        const statusInterval = setInterval(checkVideoStatus, 3000);
+    </script>
+</body>
+</html> 

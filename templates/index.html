@@ -462,6 +462,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="background_style">Background Style:</label>
+                    <select id="background_style" name="background_style">
+                        <option value="solid" selected>Solid Color</option>
+                        <option value="newspaper">Newspaper</option>
+                        <option value="old_paper">Old Paper</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
                     <label for="blur_type">Blur Type:</label>
                     <select id="blur_type" name="blur_type">
                         <option value="gaussian">Gaussian</option>
@@ -490,10 +499,13 @@
         const loadingIndicator = document.getElementById('loadingIndicator');
         const submitButton = document.getElementById('generateButton');
 
-        form.addEventListener('submit', function() {
+        form.addEventListener('submit', function(event) {
+            // Don't prevent default form submission - we want to navigate to the status page
             submitButton.disabled = true;
             submitButton.textContent = 'Generating...';
             loadingIndicator.style.display = 'block';
+            
+            // Form will be submitted normally, redirecting to the status page
         });
 
         function updateResolution() {
