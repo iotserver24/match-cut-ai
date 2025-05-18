@@ -86,7 +86,8 @@ GET /api/status/{video_id}
 {
     "status": "processing",
     "created_at": "2024-05-17T15:39:23.123456",
-    "video_url": null
+    "video_url": null,
+    "error": null
 }
 ```
 
@@ -107,8 +108,9 @@ GET /api/video/{video_id}
 
 ```json
 {
-    "video_url": "https://your-domain.com/video/550e8400-e29b-41d4-a716-446655440000.mp4",
-    "download_url": "https://your-domain.com/download/550e8400-e29b-41d4-a716-446655440000"
+    "status": "success",
+    "video_id": "550e8400-e29b-41d4-a716-446655440000",
+    "video_url": "https://your-domain.com/video/550e8400-e29b-41d4-a716-446655440000.mp4"
 }
 ```
 
@@ -135,7 +137,17 @@ GET /api/video/{video_id}
 
 ```json
 {
-    "error": "Video ID not found"
+    "status": "error",
+    "error": "Video not ready or not found"
+}
+```
+
+### Server Error
+
+```json
+{
+    "status": "error",
+    "error": "Server error: [error message]"
 }
 ```
 
@@ -192,6 +204,9 @@ if status['status'] == 'completed':
 - Minimum video dimensions are 256x256 pixels
 - FPS must be between 1 and 60
 - Duration must be between 1 and 60 seconds
+- Video URLs are stored in Redis for 30 days
+- The API uses Redis for status tracking and URL storage
+- Failed video generations are automatically cleaned up
 
 ---
 
