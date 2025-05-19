@@ -23,7 +23,7 @@ A powerful web application that creates stunning text highlight videos with AI-g
 
 1. **Clone the repository**:
 ```bash
-git clone https://github.com/iotserver24/text-match-cut.git
+git clone https://github.com/iotserver24/match-cut-ai.git
 cd text-match-cut
 ```
 
