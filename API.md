@@ -67,11 +67,12 @@ POST /api/generate
 
 ```json
 {
-    "video_id": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "processing",
-    "message": "Video generation started",
-    "status_url": "/api/status/550e8400-e29b-41d4-a716-446655440000"
+  "created_at": "2025-05-18T13:16:01.889647",
+  "error": null,
+  "status": "processing",
+  "video_url": "https://files.catbox.moe/k5phm1.mp4"
 }
+    
 ```
 
 ### Check Status
@@ -112,7 +113,7 @@ GET /api/video/{video_id}
 {
     "status": "success",
     "video_id": "550e8400-e29b-41d4-a716-446655440000",
-    "video_url": "https://your-domain.com/video/550e8400-e29b-41d4-a716-446655440000.mp4"
+    "video_url": "https://files.catbox.moe/agsbdsa.mp4"
 }
 ```
 
